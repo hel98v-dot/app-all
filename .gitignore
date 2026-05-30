@@ -1,0 +1,48 @@
+# Dipendenze
+node_modules/
+
+# Build output
+dist/
+dist-ssr/
+
+# Cache Vite / TypeScript
+.vite/
+*.tsbuildinfo
+node_modules/.tmp/
+
+# Ambiente locale
+*.local
+.env
+.env.*
+!.env.example
+
+# Log
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+pnpm-debug.log*
+
+# Editor
+.vscode/*
+!.vscode/extensions.json
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Vercel
+.vercel/
+
+# Claude Code
+.claude/
+
+# File zip di setup
+files.zip
+prompts.md
