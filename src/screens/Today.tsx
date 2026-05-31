@@ -48,8 +48,8 @@ export function Today() {
 
       {/* Header */}
       <div>
-        <p className="text-slate-500 text-sm">{formatDisplay(dateISO)}</p>
-        <h1 className="text-2xl font-bold mt-0.5">Allenamento di oggi</h1>
+        <p className="sl-label text-[10px] text-[var(--sl-cyan)] sl-glow-text">▣ Missione Giornaliera</p>
+        <h1 className="sl-heading text-2xl mt-1">{formatDisplay(dateISO)}</h1>
       </div>
 
       {/* Picker settimana */}

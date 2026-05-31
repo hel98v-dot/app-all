@@ -12,6 +12,7 @@ import { useProgramData, saveCustomProgram, clearCustomProgram } from '../hooks/
 import { useToast }           from '../hooks/useToast';
 import { ToastStack }         from '../components/Toast';
 import { ConfirmDialog }      from '../components/ConfirmDialog';
+import { BackgroundPicker }   from '../components/BackgroundPicker';
 import { formatDisplayFull }  from '../lib/dates';
 // Caricamento lazy di xlsx — riduce il bundle iniziale (xlsx ~500KB raw)
 const excelLib = () => import('../lib/excel');
@@ -153,7 +154,10 @@ export function Settings() {
     <>
       <div className="px-4 pt-6 pb-10 max-w-lg mx-auto space-y-7">
 
-        <h1 className="text-2xl font-bold">Impostazioni</h1>
+        <div>
+          <p className="sl-label text-[10px] text-[var(--sl-cyan)] sl-glow-text">▣ Pannello di Controllo</p>
+          <h1 className="sl-heading text-2xl mt-1">Sistema</h1>
+        </div>
 
         {/* ── Profili ─────────────────────────────────────────────────────────── */}
         <Section title="Profili">
@@ -236,6 +240,29 @@ export function Settings() {
               Elimina profilo "{activeProfile?.name}"
             </button>
           )}
+        </Section>
+
+        {/* ── Aspetto / Sfondi ───────────────────────────────────────────────── */}
+        <Section title="Aspetto — Sfondi">
+          <p className="text-xs text-[var(--sl-text-dim)] px-1 -mt-1">
+            Carica le tue immagini come sfondo. Vengono salvate sul dispositivo e
+            funzionano offline. Lascia vuoto per lo sfondo "System" di default.
+          </p>
+
+          <div className="sl-panel rounded-2xl px-4 py-4 space-y-4">
+            <BackgroundPicker bgKey="global"         label="Sfondo globale (tutta l'app)" />
+            <hr className="sl-divider" />
+            <BackgroundPicker bgKey="page:today"     label="Missione (Oggi)" />
+            <BackgroundPicker bgKey="page:history"   label="Registro (Storico)" />
+            <BackgroundPicker bgKey="page:volume"    label="Volume" />
+            <BackgroundPicker bgKey="page:character" label="Status (Personaggio)" />
+            <BackgroundPicker bgKey="page:settings"  label="Sistema (Impostazioni)" />
+            <hr className="sl-divider" />
+            <BackgroundPicker bgKey="exercise-default" label="Esercizi (sfondo predefinito)" />
+          </div>
+          <p className="text-xs text-[var(--sl-text-dim)] px-1">
+            Per dare uno sfondo a un singolo esercizio, aprilo e usa l'icona immagine in alto.
+          </p>
         </Section>
 
         {/* ── Scheda Allenamento (Excel) ─────────────────────────────────────── */}

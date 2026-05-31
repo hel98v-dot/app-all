@@ -1,7 +1,7 @@
 // src/components/BottomNav.tsx
-// Navigazione inferiore fissa. Touch target minimo 56px (py garantisce l'altezza).
+// Dock di navigazione "System" — vetro scuro, voce attiva con glow cyan.
 import { NavLink } from 'react-router-dom';
-import { Dumbbell, Clock, BarChart3, User, Settings } from 'lucide-react';
+import { Swords, ScrollText, BarChart3, ShieldHalf, Cpu } from 'lucide-react';
 
 interface Tab {
   to: string;
@@ -10,19 +10,23 @@ interface Tab {
 }
 
 const TABS: Tab[] = [
-  { to: '/',             label: 'Oggi',        Icon: Dumbbell  },
-  { to: '/storico',      label: 'Storico',     Icon: Clock     },
-  { to: '/volume',       label: 'Volume',      Icon: BarChart3 },
-  { to: '/personaggio',  label: 'Personaggio', Icon: User      },
-  { to: '/impostazioni', label: 'Impostazioni',Icon: Settings  },
+  { to: '/',             label: 'Missione', Icon: Swords     },
+  { to: '/storico',      label: 'Registro', Icon: ScrollText },
+  { to: '/volume',       label: 'Volume',   Icon: BarChart3  },
+  { to: '/personaggio',  label: 'Status',   Icon: ShieldHalf },
+  { to: '/impostazioni', label: 'Sistema',  Icon: Cpu        },
 ];
 
 export function BottomNav() {
   return (
     <nav
-      className="shrink-0 bg-slate-900 border-t border-slate-800 safe-area-pb"
+      className="shrink-0 relative z-10 border-t border-[var(--sl-line)]
+        bg-[rgba(6,10,20,0.82)] backdrop-blur-md"
       style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
     >
+      {/* Linea luminosa superiore */}
+      <div className="absolute top-0 inset-x-0 h-px bg-gradient-to-r from-transparent via-[var(--sl-cyan)] to-transparent opacity-60" />
+
       <ul className="flex">
         {TABS.map(({ to, label, Icon }) => (
           <li key={to} className="flex-1">
@@ -30,18 +34,25 @@ export function BottomNav() {
               to={to}
               end={to === '/'}
               className={({ isActive }) => [
-                // Altezza minima 56px: py-3.5 (28px) × 2 = 56px + contenuto
                 'flex flex-col items-center justify-center gap-1',
-                'py-3.5 w-full min-h-[56px]',
-                'text-[10px] font-semibold uppercase tracking-wide',
-                'transition-colors duration-150 select-none',
-                isActive
-                  ? 'text-indigo-400'
-                  : 'text-slate-500 active:text-slate-300',
+                'py-3 w-full min-h-[58px] relative transition-colors duration-150 select-none',
+                'sl-label text-[9px]',
+                isActive ? 'text-[var(--sl-cyan-soft)]' : 'text-[var(--sl-text-dim)] active:text-slate-300',
               ].join(' ')}
             >
-              <Icon size={24} strokeWidth={1.75} />
-              <span>{label}</span>
+              {({ isActive }) => (
+                <>
+                  {isActive && (
+                    <span className="absolute top-0 w-8 h-0.5 rounded-full bg-[var(--sl-cyan)] shadow-[0_0_10px_var(--sl-glow)]" />
+                  )}
+                  <Icon
+                    size={23}
+                    strokeWidth={isActive ? 2.25 : 1.75}
+                    className={isActive ? 'drop-shadow-[0_0_6px_var(--sl-glow)]' : ''}
+                  />
+                  <span>{label}</span>
+                </>
+              )}
             </NavLink>
           </li>
         ))}

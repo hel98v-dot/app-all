@@ -216,7 +216,7 @@ export function History() {
     return (
       <div className="flex flex-col items-center justify-center min-h-[70vh] gap-4 px-6 text-center">
         <Dumbbell size={52} className="text-slate-700" strokeWidth={1.25} />
-        <h1 className="text-2xl font-bold">Storico</h1>
+        <h1 className="sl-heading text-2xl">Registro</h1>
         <p className="text-slate-500 text-sm max-w-xs">
           Nessuna sessione ancora. Allena­ti e i tuoi log appariranno qui.
         </p>
@@ -232,7 +232,7 @@ export function History() {
 
       {/* Header pagina */}
       <div className="mb-4">
-        <h1 className="text-2xl font-bold">Storico</h1>
+        <h1 className="sl-heading text-2xl">Registro</h1>
         <p className="text-slate-500 text-sm mt-0.5">
           {totalSessions} session{totalSessions !== 1 ? 'i' : 'e'}
           {grandTotal > 0 && (

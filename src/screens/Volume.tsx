@@ -304,7 +304,7 @@ export function Volume() {
     return (
       <div className="flex flex-col items-center justify-center min-h-[70vh] gap-4 px-6 text-center">
         <BarChart3 size={52} className="text-slate-700" strokeWidth={1.25} />
-        <h1 className="text-2xl font-bold">Volume</h1>
+        <h1 className="sl-heading text-2xl">Volume</h1>
         <p className="text-slate-500 text-sm max-w-xs">
           Nessun dato ancora. Loga qualche sessione per vedere i grafici di volume.
         </p>
@@ -317,7 +317,7 @@ export function Volume() {
 
       {/* Header */}
       <div>
-        <h1 className="text-2xl font-bold">Volume</h1>
+        <h1 className="sl-heading text-2xl">Volume</h1>
         <p className="text-slate-500 text-sm mt-0.5 flex items-center gap-1">
           <Info size={12} />
           Volume = reps × kg per serie

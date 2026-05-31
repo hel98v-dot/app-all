@@ -12,8 +12,10 @@ import {
 
 // ── Colori tema ───────────────────────────────────────────────────────────────
 
-const GOLD   = '#FFD700';
-const GOLD_T = 'rgba(255,215,0,0.18)';  // gold semitrasparente per il fill radar
+const GOLD   = '#FFD700';   // riservato agli achievement (rarità "leggendaria")
+// Palette "System" (cyan) — usata per radar, barre e livello.
+const SYS    = '#38e1ff';
+const SYS_T  = 'rgba(56,225,255,0.16)';
 
 // ── Radar SVG ─────────────────────────────────────────────────────────────────
 
@@ -69,7 +71,7 @@ function RadarChart({ values, animated }: RadarProps) {
           key={pct}
           points={gridPolygon(pct)}
           fill="none"
-          stroke={pct === 1.0 ? 'rgba(255,215,0,0.3)' : 'rgba(255,255,255,0.07)'}
+          stroke={pct === 1.0 ? 'rgba(56,225,255,0.35)' : 'rgba(56,225,255,0.08)'}
           strokeWidth={pct === 1.0 ? 1.5 : 1}
         />
       ))}
@@ -90,15 +92,15 @@ function RadarChart({ values, animated }: RadarProps) {
       {/* Area stat */}
       <polygon
         points={radarPolygon(display)}
-        fill={GOLD_T}
-        stroke={GOLD}
+        fill={SYS_T}
+        stroke={SYS}
         strokeWidth={2}
         strokeLinejoin="round"
-        style={{ transition: animated ? 'none' : 'points 600ms ease-out' }}
+        style={{ filter: 'drop-shadow(0 0 6px rgba(56,225,255,0.5))', transition: animated ? 'none' : 'points 600ms ease-out' }}
       />
 
       {/* Punto centrale */}
-      <circle cx={CX} cy={CY} r={3} fill={GOLD} />
+      <circle cx={CX} cy={CY} r={3} fill={SYS} />
 
       {/* Etichette angoli */}
       {ANGLES.map((angle, i) => {
@@ -125,7 +127,7 @@ function RadarChart({ values, animated }: RadarProps) {
               textAnchor={off.anchor}
               fontSize={12}
               fontWeight="800"
-              fill={GOLD}
+              fill={SYS}
             >
               {val}
             </text>
@@ -151,17 +153,17 @@ function StatBar({ label, icon, desc, value, animated }: StatBarProps) {
   const { bg, text } = RATING_COLORS[rating];
 
   return (
-    <div className="bg-slate-800 border border-slate-700/60 rounded-2xl px-4 py-3.5 space-y-2">
+    <div className="sl-panel rounded-2xl px-4 py-3.5 space-y-2">
       <div className="flex items-center gap-3">
         {/* Icona + nome */}
         <span className="text-xl shrink-0">{icon}</span>
         <div className="flex-1 min-w-0">
           <div className="flex items-center justify-between mb-1">
-            <span className="text-sm font-bold text-slate-100 tracking-wide">{label}</span>
+            <span className="sl-label text-xs text-slate-100">{label}</span>
             <div className="flex items-center gap-2">
-              <span className="text-sm font-bold tabular-nums" style={{ color: GOLD }}>{value}</span>
+              <span className="text-sm font-bold tabular-nums sl-display" style={{ color: SYS }}>{value}</span>
               <span
-                className="inline-flex items-center justify-center w-7 h-7 rounded-lg text-xs font-black"
+                className="sl-rank inline-flex items-center justify-center w-7 h-7 rounded-lg text-xs"
                 style={{ backgroundColor: bg, color: text }}
               >
                 {rating}
@@ -169,19 +171,20 @@ function StatBar({ label, icon, desc, value, animated }: StatBarProps) {
             </div>
           </div>
           {/* Barra */}
-          <div className="h-2 rounded-full bg-slate-700 overflow-hidden">
+          <div className="h-2 rounded-full bg-[rgba(8,14,28,0.8)] overflow-hidden border border-[var(--sl-line-soft)]">
             <div
               className="h-full rounded-full"
               style={{
                 width: animated ? `${value}%` : '0%',
-                background: `linear-gradient(90deg, #6366f1, ${GOLD})`,
+                background: `linear-gradient(90deg, ${SYS}, ${SYS})`,
+                boxShadow: '0 0 10px rgba(56,225,255,0.6)',
                 transition: 'width 700ms cubic-bezier(0.34,1.2,0.64,1)',
               }}
             />
           </div>
         </div>
       </div>
-      <p className="text-xs text-slate-500 pl-8">{desc}</p>
+      <p className="text-xs text-[var(--sl-text-dim)] pl-8">{desc}</p>
     </div>
   );
 }
@@ -263,10 +266,10 @@ export function Character() {
           <Sword  size={40} className="text-slate-700" strokeWidth={1.25} />
           <Shield size={40} className="text-slate-700" strokeWidth={1.25} />
         </div>
-        <h1 className="text-2xl font-bold" style={{ color: GOLD }}>⚔ PERSONAGGIO</h1>
-        <p className="text-slate-400 max-w-xs text-sm leading-relaxed">
-          Inizia ad allenarti per vedere il tuo personaggio prendere vita.
-          Ogni kg sollevato costruisce le tue statistiche.
+        <h1 className="sl-heading text-2xl">Status</h1>
+        <p className="text-[var(--sl-text-dim)] max-w-xs text-sm leading-relaxed">
+          Nessun dato. Completa le tue missioni per far emergere lo Status del Player —
+          ogni kg sollevato costruisce le tue statistiche.
         </p>
       </div>
     );
@@ -277,56 +280,52 @@ export function Character() {
     <div className={['px-4 pt-5 pb-10 max-w-lg mx-auto space-y-5', isStale ? 'opacity-60' : ''].join(' ')}>
 
       {/* ── Titolo ──────────────────────────────────────────────────────────── */}
-      <h1
-        className="text-center text-xl font-black tracking-[0.15em] uppercase"
-        style={{ color: GOLD }}
-      >
-        ⚔ PERSONAGGIO
-      </h1>
+      <div className="text-center space-y-1">
+        <p className="sl-label text-[10px] text-[var(--sl-cyan)] sl-glow-text">▣ Player Status</p>
+        <h1 className="sl-heading text-2xl">Status</h1>
+      </div>
 
-      {/* ── Card livello globale ─────────────────────────────────────────────── */}
-      <div
-        className="rounded-3xl border border-yellow-700/40 px-5 py-5 space-y-3"
-        style={{
-          background: 'linear-gradient(135deg, rgba(30,27,20,0.95), rgba(20,20,30,0.95))',
-          boxShadow: '0 0 24px rgba(255,215,0,0.08)',
-        }}
-      >
+      {/* ── Card livello globale (finestra System) ───────────────────────────── */}
+      <div className="sl-panel sl-topline rounded-2xl px-5 py-5 space-y-3 sl-sweep">
         <div className="flex items-center gap-4">
           {/* Numero livello */}
-          <span
-            className="text-6xl font-black tabular-nums leading-none"
-            style={{ color: GOLD }}
-          >
-            {stats.globalLevel}
-          </span>
+          <div className="flex flex-col items-center leading-none">
+            <span className="sl-label text-[9px] text-[var(--sl-text-dim)] mb-1">Livello</span>
+            <span
+              className="text-6xl font-black tabular-nums leading-none sl-display sl-glow-text"
+              style={{ color: SYS }}
+            >
+              {stats.globalLevel}
+            </span>
+          </div>
 
           <div className="flex-1 space-y-1.5">
-            <div className="flex items-center gap-2">
-              <span className="text-slate-400 text-sm font-semibold uppercase tracking-wider">
-                Livello Globale
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="sl-label text-[10px] text-[var(--sl-text-dim)]">
+                Hunter Rank
               </span>
               {/* Rating badge grande */}
               <span
-                className="text-base font-black px-2.5 py-0.5 rounded-lg"
+                className="sl-rank text-lg px-3 py-0.5 rounded-lg"
                 style={{ backgroundColor: glBg, color: glText }}
               >
                 {globalRating}
               </span>
             </div>
-            <p className="text-xs text-slate-500">
+            <p className="text-xs text-[var(--sl-text-dim)]">
               {stats.xp.toLocaleString('it-IT')} XP totali
             </p>
           </div>
         </div>
 
         {/* Barra progresso livello */}
-        <div className="h-3 rounded-full bg-slate-800 overflow-hidden">
+        <div className="h-3 rounded-full bg-[rgba(8,14,28,0.85)] overflow-hidden border border-[var(--sl-line-soft)]">
           <div
             className="h-full rounded-full"
             style={{
               width: animated ? `${stats.globalLevel}%` : '0%',
-              background: `linear-gradient(90deg, #3730a3, #6366f1, ${GOLD})`,
+              background: `linear-gradient(90deg, var(--sl-violet), ${SYS})`,
+              boxShadow: '0 0 12px rgba(56,225,255,0.55)',
               transition: 'width 800ms cubic-bezier(0.34,1.1,0.64,1)',
             }}
           />
@@ -336,8 +335,8 @@ export function Character() {
         <div className="flex justify-between pt-1">
           {STAT_META.map(({ key, label }) => (
             <div key={key} className="flex flex-col items-center gap-0.5">
-              <span className="text-[10px] text-slate-500 uppercase tracking-wider">{label.slice(0, 3)}</span>
-              <span className="text-sm font-bold" style={{ color: stats[key] >= 60 ? GOLD : 'rgb(148,163,184)' }}>
+              <span className="sl-label text-[9px] text-[var(--sl-text-dim)]">{label.slice(0, 3)}</span>
+              <span className="text-sm font-bold sl-display" style={{ color: stats[key] >= 60 ? SYS : 'rgb(125,151,173)' }}>
                 {stats[key]}
               </span>
             </div>
@@ -346,7 +345,7 @@ export function Character() {
       </div>
 
       {/* ── Radar chart ──────────────────────────────────────────────────────── */}
-      <div className="bg-slate-900 border border-slate-800 rounded-3xl py-4 px-2">
+      <div className="sl-panel rounded-2xl py-4 px-2">
         <RadarChart
           values={[stats.forza, stats.resistenza, stats.costanza, stats.volume, stats.core]}
           animated={animated}
@@ -369,11 +368,8 @@ export function Character() {
 
       {/* ── Achievement ──────────────────────────────────────────────────────── */}
       <div className="space-y-3 pt-1">
-        <h2
-          className="text-base font-black tracking-wider uppercase"
-          style={{ color: GOLD }}
-        >
-          🏆 ACHIEVEMENT
+        <h2 className="sl-heading text-base flex items-center gap-2">
+          <span>🏆</span> Achievement
         </h2>
         <div className="space-y-2.5">
           {ACHIEVEMENTS.map(ach => (

@@ -6,6 +6,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, Check, Info, StickyNote } from 'lucide-react';
 
 import { useProgramData }   from '../hooks/useProgramData';
+import { BackgroundPicker }  from '../components/BackgroundPicker';
 import type { Muscle }      from '../data/program';
 import { useLogStore }      from '../hooks/useLogStore';
 import { useToast }         from '../hooks/useToast';
@@ -235,19 +236,28 @@ export function ExerciseLogger() {
 
         <div className="flex-1 px-4 pt-4 pb-36 space-y-5 max-w-lg mx-auto w-full">
 
-          {/* Back */}
-          <button
-            onClick={() => navigate(-1)}
-            className="flex items-center gap-1.5 text-slate-400 active:text-slate-200
-              -ml-1 py-2 pr-4 min-h-[48px]"
-          >
-            <ArrowLeft size={20} strokeWidth={2} />
-            <span className="text-sm">Sessione</span>
-          </button>
+          {/* Back + sfondo esercizio */}
+          <div className="flex items-center justify-between -ml-1">
+            <button
+              onClick={() => navigate(-1)}
+              className="flex items-center gap-1.5 text-[var(--sl-text-dim)] active:text-slate-200
+                py-2 pr-4 min-h-[48px]"
+            >
+              <ArrowLeft size={20} strokeWidth={2} />
+              <span className="text-sm sl-label text-[10px]">Sessione</span>
+            </button>
+
+            <BackgroundPicker
+              bgKey={`exercise:${exercise.id}`}
+              label={exercise.name}
+              compact
+              onDone={a => show(a === 'set' ? 'Sfondo esercizio impostato ✓' : 'Sfondo rimosso', 'ok')}
+            />
+          </div>
 
           {/* Header */}
           <div className="space-y-2">
-            <h1 className="text-2xl font-bold leading-snug text-white">
+            <h1 className="text-2xl font-bold leading-snug text-white sl-glow-text" style={{ fontFamily: 'var(--font-ui)' }}>
               {exercise.name}
               {exercise.unilateral && (
                 <span className="text-slate-400 font-normal text-lg ml-2">(per lato)</span>

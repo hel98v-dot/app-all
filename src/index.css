@@ -1,37 +1,273 @@
 @import "tailwindcss";
 
+/* ════════════════════════════════════════════════════════════════════════
+   SYSTEM THEME — estetica "interfaccia di gioco" ispirata agli RPG/manhwa.
+   Tutto generato in CSS (gradienti, glow, griglie): nessun asset esterno.
+   ════════════════════════════════════════════════════════════════════════ */
+
 :root {
   color-scheme: dark;
+
+  /* Palette System */
+  --sl-bg:        #05070e;
+  --sl-bg-2:      #080d1a;
+  --sl-panel:     rgba(10, 19, 38, 0.72);
+  --sl-panel-2:   rgba(14, 26, 48, 0.55);
+
+  --sl-cyan:      #38e1ff;
+  --sl-cyan-soft: #8af2ff;
+  --sl-blue:      #2f7bff;
+  --sl-violet:    #8b5cff;
+  --sl-violet-soft:#b89bff;
+
+  --sl-line:      rgba(56, 225, 255, 0.30);
+  --sl-line-soft: rgba(56, 225, 255, 0.14);
+  --sl-glow:      rgba(56, 225, 255, 0.55);
+  --sl-glow-violet: rgba(139, 92, 255, 0.45);
+
+  --sl-text:      #dceefcf2;
+  --sl-text-dim:  #7d97ad;
+
+  --font-display: 'Orbitron', system-ui, sans-serif;
+  --font-ui:      'Rajdhani', system-ui, -apple-system, sans-serif;
 }
 
+/* ── Base ─────────────────────────────────────────────────────────────── */
 body {
   margin: 0;
-  background-color: #0f172a;
-  color: #f1f5f9;
-  font-family: system-ui, -apple-system, sans-serif;
+  background-color: var(--sl-bg);
+  color: var(--sl-text);
+  font-family: var(--font-ui);
+  font-size: 16px;
+  letter-spacing: 0.01em;
   -webkit-font-smoothing: antialiased;
-  /* Disabilita il text-size-adjust su iOS (evita zoom accidentale) */
   -webkit-text-size-adjust: 100%;
 }
 
-/* ── Transizione route ─────────────────────────────────────────────────────── */
+/* Numeri tabellari più leggibili con Rajdhani */
+.tabular-nums { font-variant-numeric: tabular-nums; }
+
+/* ── Sfondo di default "System" (quando non c'è immagine utente) ───────── */
+.sl-bg-default {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(120% 80% at 50% -10%, rgba(47, 123, 255, 0.18), transparent 55%),
+    radial-gradient(90% 60% at 85% 110%, rgba(139, 92, 255, 0.16), transparent 60%),
+    radial-gradient(70% 50% at 12% 95%, rgba(56, 225, 255, 0.12), transparent 60%),
+    linear-gradient(180deg, var(--sl-bg) 0%, var(--sl-bg-2) 60%, var(--sl-bg) 100%);
+}
+/* Griglia prospettica tenue */
+.sl-bg-default::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(var(--sl-line-soft) 1px, transparent 1px),
+    linear-gradient(90deg, var(--sl-line-soft) 1px, transparent 1px);
+  background-size: 46px 46px;
+  -webkit-mask-image: radial-gradient(120% 90% at 50% 0%, #000 35%, transparent 80%);
+          mask-image: radial-gradient(120% 90% at 50% 0%, #000 35%, transparent 80%);
+  opacity: 0.5;
+}
+
+/* Scrim scuro sopra le immagini-sfondo caricate dall'utente (leggibilità) */
+.sl-bg-scrim {
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(180deg, rgba(5,7,14,0.82) 0%, rgba(5,7,14,0.70) 35%, rgba(5,7,14,0.86) 100%),
+    radial-gradient(100% 60% at 50% 0%, rgba(47,123,255,0.14), transparent 60%);
+}
+.sl-bg-image {
+  position: absolute;
+  inset: 0;
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+}
+
+/* Scanline molto tenui per il "feel" da schermo olografico */
+.sl-scanlines::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: repeating-linear-gradient(
+    0deg,
+    rgba(56, 225, 255, 0.035) 0px,
+    rgba(56, 225, 255, 0.035) 1px,
+    transparent 2px,
+    transparent 4px
+  );
+  opacity: 0.4;
+}
+
+/* ── Tipografia System ────────────────────────────────────────────────── */
+.sl-display {
+  font-family: var(--font-display);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.sl-heading {
+  font-family: var(--font-display);
+  font-weight: 700;
+  letter-spacing: 0.10em;
+  text-transform: uppercase;
+  color: var(--sl-cyan-soft);
+  text-shadow: 0 0 14px var(--sl-glow);
+}
+.sl-label {
+  font-family: var(--font-ui);
+  font-weight: 600;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+}
+.sl-glow-text   { text-shadow: 0 0 12px var(--sl-glow); }
+.sl-glow-violet { text-shadow: 0 0 12px var(--sl-glow-violet); }
+
+/* ── Pannelli / finestre "System" ─────────────────────────────────────── */
+.sl-panel {
+  position: relative;
+  background:
+    linear-gradient(180deg, var(--sl-panel) 0%, var(--sl-panel-2) 100%);
+  border: 1px solid var(--sl-line);
+  border-radius: 14px;
+  backdrop-filter: blur(7px);
+  -webkit-backdrop-filter: blur(7px);
+  box-shadow:
+    0 0 0 1px rgba(56,225,255,0.05),
+    0 0 22px rgba(47,123,255,0.10),
+    inset 0 1px 0 rgba(174,230,255,0.08);
+}
+/* Tacca luminosa sull'angolo (HUD) */
+.sl-panel::before {
+  content: "";
+  position: absolute;
+  top: -1px; left: 14px;
+  width: 44px; height: 2px;
+  background: linear-gradient(90deg, transparent, var(--sl-cyan), transparent);
+  box-shadow: 0 0 8px var(--sl-glow);
+}
+
+/* Variante con angoli tagliati (HUD spinto). Glow via drop-shadow. */
+.sl-hud {
+  position: relative;
+  background: linear-gradient(180deg, var(--sl-panel) 0%, var(--sl-panel-2) 100%);
+  border: 1px solid var(--sl-line);
+  clip-path: polygon(
+    0 12px, 12px 0,
+    100% 0, 100% calc(100% - 12px),
+    calc(100% - 12px) 100%, 0 100%
+  );
+}
+
+/* Bordo accentato superiore (intestazioni finestra) */
+.sl-topline {
+  border-top: 2px solid var(--sl-cyan);
+  box-shadow: 0 -1px 16px -2px var(--sl-glow);
+}
+
+/* Divisore a gradiente */
+.sl-divider {
+  height: 1px;
+  border: 0;
+  background: linear-gradient(90deg, transparent, var(--sl-line), transparent);
+}
+
+/* ── Bottone primario "System" ────────────────────────────────────────── */
+.sl-btn {
+  font-family: var(--font-display);
+  font-weight: 700;
+  letter-spacing: 0.10em;
+  text-transform: uppercase;
+  color: #06121e;
+  background: linear-gradient(180deg, var(--sl-cyan-soft), var(--sl-cyan));
+  border: 1px solid var(--sl-cyan-soft);
+  box-shadow:
+    0 0 18px var(--sl-glow),
+    inset 0 1px 0 rgba(255,255,255,0.45);
+  transition: filter 120ms ease, transform 120ms ease;
+}
+.sl-btn:active { filter: brightness(1.15); transform: translateY(1px); }
+.sl-btn:disabled {
+  filter: grayscale(0.6) brightness(0.6);
+  box-shadow: none;
+}
+
+.sl-btn-ghost {
+  font-family: var(--font-ui);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  color: var(--sl-cyan-soft);
+  background: rgba(56,225,255,0.06);
+  border: 1px solid var(--sl-line);
+  transition: background 120ms ease;
+}
+.sl-btn-ghost:active { background: rgba(56,225,255,0.14); }
+
+/* ── Badge rango (E · D · C · B · A · S) ──────────────────────────────── */
+.sl-rank {
+  font-family: var(--font-display);
+  font-weight: 900;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-shadow: 0 0 14px currentColor;
+}
+.sl-rank-S { color: #ffd24a; }
+.sl-rank-A { color: #ff7ad1; }
+.sl-rank-B { color: var(--sl-violet-soft); }
+.sl-rank-C { color: var(--sl-cyan); }
+.sl-rank-D { color: #6fd3a3; }
+.sl-rank-E { color: #8aa0b4; }
+
+/* ── Animazioni discrete (rispettano "niente animazioni lente") ───────── */
+@keyframes sl-sweep {
+  0%   { transform: translateX(-120%); opacity: 0; }
+  20%  { opacity: 1; }
+  100% { transform: translateX(120%); opacity: 0; }
+}
+.sl-sweep {
+  position: relative;
+  overflow: hidden;
+}
+.sl-sweep::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(105deg, transparent 30%, rgba(138,242,255,0.22) 50%, transparent 70%);
+  animation: sl-sweep 2.6s ease-in-out infinite;
+}
+
+@keyframes sl-pulse {
+  0%,100% { box-shadow: 0 0 12px var(--sl-glow); }
+  50%     { box-shadow: 0 0 22px var(--sl-glow); }
+}
+.sl-pulse { animation: sl-pulse 2.4s ease-in-out infinite; }
+
+@media (prefers-reduced-motion: reduce) {
+  .sl-sweep::after, .sl-pulse { animation: none; }
+}
+
+/* ── Transizione route (mantenuta, leggermente più "tech") ────────────── */
 @keyframes routeEnter {
-  from {
-    opacity: 0;
-    transform: translateY(6px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+  from { opacity: 0; transform: translateY(8px); filter: blur(2px); }
+  to   { opacity: 1; transform: translateY(0);   filter: blur(0); }
 }
+.route-enter { animation: routeEnter 200ms ease-out both; }
 
-.route-enter {
-  animation: routeEnter 200ms ease-out both;
-}
-
-/* ── Touch — disabilita callout e selezione indesiderata su bottoni ────────── */
+/* ── Touch ────────────────────────────────────────────────────────────── */
 button {
   -webkit-tap-highlight-color: transparent;
   touch-action: manipulation;
 }
+
+/* ── Scrollbar sottile a tema ─────────────────────────────────────────── */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-thumb {
+  background: rgba(56,225,255,0.25);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-track { background: transparent; }
