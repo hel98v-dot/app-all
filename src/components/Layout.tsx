@@ -27,7 +27,7 @@ export function Layout() {
   const location = useLocation();
 
   return (
-    <div className="flex flex-col h-screen text-slate-100 overflow-hidden">
+    <div className="flex flex-col h-[100dvh] text-slate-100 overflow-hidden">
       {/* Sfondo full-screen (z -10) */}
       <ThemeBackground keys={bgKeysFor(location.pathname)} />
 

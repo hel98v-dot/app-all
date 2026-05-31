@@ -1,7 +1,7 @@
 // src/screens/ExerciseLogger.tsx
 // Route: /esercizio/:weekNumber/:sessionId/:exerciseId
 
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, Check, Info, StickyNote } from 'lucide-react';
 
@@ -54,8 +54,8 @@ function StepBtn({ label, onPress, variant = 'primary' }: StepBtnProps) {
         'flex items-center justify-center w-12 h-12 rounded-xl select-none',
         'active:scale-95 transition-transform font-bold',
         variant === 'primary'
-          ? 'bg-slate-700 text-xl text-slate-100 active:bg-slate-600'
-          : 'bg-slate-800 text-sm  text-slate-400 active:bg-slate-700',
+          ? 'text-xl text-[var(--sl-cyan-soft)] border border-[var(--sl-line)] bg-[rgba(56,225,255,0.08)] active:bg-[rgba(56,225,255,0.18)]'
+          : 'text-sm text-[var(--sl-text-dim)] border border-[var(--sl-line-soft)] bg-[rgba(56,225,255,0.04)] active:bg-[rgba(56,225,255,0.12)]',
       ].join(' ')}
     >
       {label}
@@ -114,9 +114,9 @@ function NumField({ value, onChange, step, min = 0, label, microStep }: NumField
           onFocus={e => e.currentTarget.select()}
           className={[
             'w-[72px] text-center text-2xl font-bold tabular-nums',
-            'bg-slate-900 border border-slate-700 rounded-xl py-2',
+            'bg-[rgba(6,10,20,0.85)] border border-[var(--sl-line)] rounded-xl py-2',
             // Contrasto AAA: text-white su bg scuro
-            'text-white focus:outline-none focus:border-indigo-400',
+            'text-white focus:outline-none focus:border-[var(--sl-cyan)] focus:shadow-[0_0_14px_var(--sl-glow)]',
             '[appearance:textfield]',
             '[&::-webkit-outer-spin-button]:appearance-none',
             '[&::-webkit-inner-spin-button]:appearance-none',
@@ -156,7 +156,7 @@ export function ExerciseLogger() {
     exerciseId:  string;
   }>();
   const navigate = useNavigate();
-  const { getExerciseLog, saveExerciseLog } = useLogStore();
+  const { getExerciseLog, saveExerciseLog, clearExerciseLog } = useLogStore();
   const { toasts, show } = useToast();
 
   const program    = useProgramData();
@@ -177,6 +177,26 @@ export function ExerciseLogger() {
     }
     return Array.from({ length: n }, () => ({ reps: 0, kg: 0 }));
   });
+
+  // ── Autosave ───────────────────────────────────────────────────────────────────
+  // Salva a ogni modifica: uscendo senza premere "Salva" NON si perde nulla.
+  useEffect(() => {
+    if (!found) return;
+    const id = found.exercise.id;
+    const hasData = sets.some(s => s.reps > 0);
+    if (hasData) {
+      saveExerciseLog(weekNumber, sessionId ?? '', dateISO, {
+        exerciseId:  id,
+        sets,
+        completedAt: new Date().toISOString(),
+        ...(notes.trim() ? { notes: notes.trim() } : {}),
+      });
+    } else if (getExerciseLog(weekNumber, sessionId ?? '', dateISO, id)) {
+      // Tutto azzerato → rimuovi il log esistente
+      clearExerciseLog(weekNumber, sessionId ?? '', dateISO, id);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sets, notes]);
 
   // ── Guard ─────────────────────────────────────────────────────────────────────
   if (!found) {
@@ -232,161 +252,150 @@ export function ExerciseLogger() {
   // ── Render ────────────────────────────────────────────────────────────────────
   return (
     <>
-      <div className="flex flex-col min-h-full">
+      <div className="px-4 pt-4 pb-5 space-y-5 max-w-lg mx-auto w-full">
 
-        <div className="flex-1 px-4 pt-4 pb-36 space-y-5 max-w-lg mx-auto w-full">
+        {/* Back + sfondo esercizio */}
+        <div className="flex items-center justify-between -ml-1">
+          <button
+            onClick={() => navigate(-1)}
+            className="flex items-center gap-1.5 text-[var(--sl-text-dim)] active:text-slate-200
+              py-2 pr-4 min-h-[48px]"
+          >
+            <ArrowLeft size={20} strokeWidth={2} />
+            <span className="text-sm sl-label text-[10px]">Sessione</span>
+          </button>
 
-          {/* Back + sfondo esercizio */}
-          <div className="flex items-center justify-between -ml-1">
-            <button
-              onClick={() => navigate(-1)}
-              className="flex items-center gap-1.5 text-[var(--sl-text-dim)] active:text-slate-200
-                py-2 pr-4 min-h-[48px]"
-            >
-              <ArrowLeft size={20} strokeWidth={2} />
-              <span className="text-sm sl-label text-[10px]">Sessione</span>
-            </button>
+          <BackgroundPicker
+            bgKey={`exercise:${exercise.id}`}
+            label={exercise.name}
+            compact
+            onDone={a => show(a === 'set' ? 'Sfondo esercizio impostato ✓' : 'Sfondo rimosso', 'ok')}
+          />
+        </div>
 
-            <BackgroundPicker
-              bgKey={`exercise:${exercise.id}`}
-              label={exercise.name}
-              compact
-              onDone={a => show(a === 'set' ? 'Sfondo esercizio impostato ✓' : 'Sfondo rimosso', 'ok')}
-            />
-          </div>
-
-          {/* Header */}
-          <div className="space-y-2">
-            <h1 className="text-2xl font-bold leading-snug text-white sl-glow-text" style={{ fontFamily: 'var(--font-ui)' }}>
-              {exercise.name}
-              {exercise.unilateral && (
-                <span className="text-slate-400 font-normal text-lg ml-2">(per lato)</span>
-              )}
-            </h1>
-
-            <span className={[
-              'inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold border',
-              MUSCLE_COLORS[exercise.muscle],
-            ].join(' ')}>
-              {exercise.muscle}
-            </span>
-
-            <p className="text-slate-400 text-sm">
-              <span className="text-slate-200 font-medium">{exercise.prescribedSets} set</span>
-              {' × '}
-              <span className="text-slate-200 font-medium">{exercise.repsTarget} {metricLabel}</span>
-              {exercise.unilateral && <span className="text-slate-500"> per lato</span>}
-              {'  ·  '}RPE {exercise.rpeTarget}
-              {'  ·  '}rec {exercise.rest}
-            </p>
-
-            {exercise.notes && (
-              <div className="flex items-start gap-2 bg-slate-800/60 rounded-xl px-3 py-2.5">
-                <Info size={14} className="text-indigo-400 shrink-0 mt-0.5" />
-                <p className="text-slate-300 text-sm italic">{exercise.notes}</p>
-              </div>
+        {/* Header */}
+        <div className="space-y-2">
+          <h1 className="text-2xl font-bold leading-snug text-white sl-glow-text" style={{ fontFamily: 'var(--font-ui)' }}>
+            {exercise.name}
+            {exercise.unilateral && (
+              <span className="text-slate-400 font-normal text-lg ml-2">(per lato)</span>
             )}
-          </div>
+          </h1>
 
-          {/* Set cards */}
-          <div className="space-y-3">
-            {sets.map((s, idx) => {
-              const vol    = setVolume(s);
-              const isDone = s.reps > 0;
+          <span className={[
+            'inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold border',
+            MUSCLE_COLORS[exercise.muscle],
+          ].join(' ')}>
+            {exercise.muscle}
+          </span>
 
-              return (
-                <div
-                  key={idx}
-                  className={[
-                    'rounded-2xl border px-4 pt-3 pb-4 space-y-3',
-                    isDone
-                      ? 'bg-indigo-950/40 border-indigo-700/50'
-                      : 'bg-slate-800     border-slate-700/60',
-                  ].join(' ')}
-                >
-                  <div className="flex items-center justify-between">
-                    <span className={[
-                      'text-xs font-bold uppercase tracking-widest',
-                      isDone ? 'text-indigo-400' : 'text-slate-500',
-                    ].join(' ')}>
-                      Set {idx + 1}
-                    </span>
-                    {vol > 0 && (
-                      <span className="text-xs text-slate-400 tabular-nums">
-                        Vol: <span className="text-white font-semibold">{vol}</span> kg
-                      </span>
-                    )}
-                  </div>
+          <p className="text-[var(--sl-text-dim)] text-sm">
+            <span className="text-slate-200 font-medium">{exercise.prescribedSets} set</span>
+            {' × '}
+            <span className="text-slate-200 font-medium">{exercise.repsTarget} {metricLabel}</span>
+            {exercise.unilateral && <span className="text-slate-500"> per lato</span>}
+            {'  ·  '}RPE {exercise.rpeTarget}
+            {'  ·  '}rec {exercise.rest}
+          </p>
 
-                  <div className="flex items-start justify-center gap-6 flex-wrap">
-                    <NumField
-                      label={metricLabel}
-                      value={s.reps}
-                      step={1}
-                      min={0}
-                      onChange={v => updateSet(idx, 'reps', v)}
-                    />
-                    <div className="flex items-center self-center pt-5">
-                      <span className="text-slate-600 text-xl font-light">×</span>
-                    </div>
-                    <NumField
-                      label="kg"
-                      value={s.kg}
-                      step={kgStep}
-                      microStep={kgMicro}
-                      min={0}
-                      onChange={v => updateSet(idx, 'kg', v)}
-                    />
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-
-          {/* Note libere */}
-          <div className="space-y-1.5">
-            <label className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-widest text-slate-500">
-              <StickyNote size={12} />
-              Note (opzionale)
-            </label>
-            <textarea
-              value={notes}
-              onChange={e => setNotes(e.target.value)}
-              placeholder="Come ti sei sentito? Carico, tecnica, sensazioni…"
-              rows={3}
-              className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2.5
-                text-slate-200 text-sm placeholder:text-slate-600
-                focus:outline-none focus:border-indigo-500 resize-none"
-            />
-          </div>
-
-          {/* Volume totale */}
-          {totalVolume > 0 && (
-            <div className="rounded-2xl bg-slate-800 border border-slate-700 px-4 py-3
-              flex items-center justify-between">
-              <span className="text-slate-400 text-sm">Volume totale esercizio</span>
-              <span className="text-xl font-bold text-white tabular-nums">
-                {totalVolume.toFixed(1)}
-                <span className="text-sm font-normal text-slate-400 ml-1">kg</span>
-              </span>
+          {exercise.notes && (
+            <div className="flex items-start gap-2 rounded-xl px-3 py-2.5
+              bg-[rgba(56,225,255,0.06)] border border-[var(--sl-line-soft)]">
+              <Info size={14} className="text-[var(--sl-cyan)] shrink-0 mt-0.5" />
+              <p className="text-slate-300 text-sm italic">{exercise.notes}</p>
             </div>
           )}
         </div>
 
-        {/* Bottone Salva sticky */}
-        <div className="fixed bottom-[56px] inset-x-0 px-4 pb-3
-          bg-gradient-to-t from-slate-950 via-slate-950/95 to-transparent pt-4">
+        {/* Set cards */}
+        <div className="space-y-3">
+          {sets.map((s, idx) => {
+            const vol    = setVolume(s);
+            const isDone = s.reps > 0;
+
+            return (
+              <div
+                key={idx}
+                className={[
+                  'sl-panel rounded-2xl px-4 pt-3 pb-4 space-y-3 transition-shadow',
+                  isDone ? 'ring-1 ring-[var(--sl-cyan)]/45 shadow-[0_0_18px_rgba(56,225,255,0.12)]' : '',
+                ].join(' ')}
+              >
+                <div className="flex items-center justify-between">
+                  <span className={[
+                    'sl-label text-[11px]',
+                    isDone ? 'text-[var(--sl-cyan-soft)]' : 'text-[var(--sl-text-dim)]',
+                  ].join(' ')}>
+                    Set {idx + 1}
+                  </span>
+                  {vol > 0 && (
+                    <span className="text-xs text-[var(--sl-text-dim)] tabular-nums">
+                      Vol: <span className="text-white font-semibold">{vol}</span> kg
+                    </span>
+                  )}
+                </div>
+
+                <div className="flex items-start justify-center gap-6 flex-wrap">
+                  <NumField
+                    label={metricLabel}
+                    value={s.reps}
+                    step={1}
+                    min={0}
+                    onChange={v => updateSet(idx, 'reps', v)}
+                  />
+                  <div className="flex items-center self-center pt-5">
+                    <span className="text-[var(--sl-text-dim)] text-xl font-light">×</span>
+                  </div>
+                  <NumField
+                    label="kg"
+                    value={s.kg}
+                    step={kgStep}
+                    microStep={kgMicro}
+                    min={0}
+                    onChange={v => updateSet(idx, 'kg', v)}
+                  />
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Note libere */}
+        <div className="space-y-1.5">
+          <label className="flex items-center gap-1.5 sl-label text-[10px] text-[var(--sl-text-dim)]">
+            <StickyNote size={12} />
+            Note (opzionale)
+          </label>
+          <textarea
+            value={notes}
+            onChange={e => setNotes(e.target.value)}
+            placeholder="Come ti sei sentito? Carico, tecnica, sensazioni…"
+            rows={3}
+            className="w-full bg-[rgba(6,10,20,0.85)] border border-[var(--sl-line)] rounded-xl px-3 py-2.5
+              text-slate-200 text-sm placeholder:text-[var(--sl-text-dim)]
+              focus:outline-none focus:border-[var(--sl-cyan)] resize-none"
+          />
+        </div>
+
+        {/* Volume totale */}
+        {totalVolume > 0 && (
+          <div className="sl-panel rounded-2xl px-4 py-3 flex items-center justify-between">
+            <span className="sl-label text-[10px] text-[var(--sl-text-dim)]">Volume totale</span>
+            <span className="text-xl font-bold text-white tabular-nums sl-display">
+              {totalVolume.toFixed(1)}
+              <span className="text-sm font-normal text-[var(--sl-text-dim)] ml-1">kg</span>
+            </span>
+          </div>
+        )}
+
+        {/* Bottone Salva — sticky in fondo */}
+        <div className="sticky bottom-3 z-10 pt-4 -mb-1
+          bg-gradient-to-t from-[var(--sl-bg)] via-[var(--sl-bg)]/85 to-transparent">
           <button
             onClick={handleSave}
             disabled={!canSave}
-            className={[
-              'w-full max-w-lg mx-auto flex items-center justify-center gap-2',
-              'py-4 rounded-2xl text-base font-bold min-h-[56px]',
-              'transition-all active:scale-[0.97]',
-              canSave
-                ? 'bg-indigo-600 active:bg-indigo-500 text-white'
-                : 'bg-slate-800 text-slate-600 cursor-not-allowed',
-            ].join(' ')}
+            className="sl-btn w-full flex items-center justify-center gap-2
+              py-4 rounded-2xl text-base min-h-[56px]"
           >
             <Check size={20} strokeWidth={2.5} />
             {canSave ? 'Salva allenamento' : 'Inserisci almeno 1 set con reps'}

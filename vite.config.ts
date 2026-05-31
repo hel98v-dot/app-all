@@ -23,11 +23,11 @@ export default defineConfig({
 
       // ── Web App Manifest ─────────────────────────────────────────────────
       manifest: {
-        name:             'Allenamento',
-        short_name:       'Allena',
-        description:      'Traccia i tuoi allenamenti in palestra e a casa. Offline-first.',
-        theme_color:      '#0f172a',
-        background_color: '#0f172a',
+        name:             'Arise',
+        short_name:       'Arise',
+        description:      'Sistema di allenamento. Diventa più forte, sessione dopo sessione.',
+        theme_color:      '#05070e',
+        background_color: '#05070e',
         display:          'standalone',
         orientation:      'portrait',
         start_url:        '/',

@@ -22,7 +22,7 @@ export function BottomNav() {
     <nav
       className="shrink-0 relative z-10 border-t border-[var(--sl-line)]
         bg-[rgba(6,10,20,0.82)] backdrop-blur-md"
-      style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
+      style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 12px)' }}
     >
       {/* Linea luminosa superiore */}
       <div className="absolute top-0 inset-x-0 h-px bg-gradient-to-r from-transparent via-[var(--sl-cyan)] to-transparent opacity-60" />

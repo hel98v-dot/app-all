@@ -5,7 +5,7 @@ import { useState } from 'react';
 import { ChevronDown, ChevronRight, Dumbbell, Calendar } from 'lucide-react';
 import { useLogStore }     from '../hooks/useLogStore';
 import { useProgramData }  from '../hooks/useProgramData';
-import { formatDisplay }   from '../lib/dates';
+import { formatDisplay, today, parseDate, addDays } from '../lib/dates';
 import type { ExerciseLog, SessionLog } from '../types';
 
 // ── Calcoli volume ────────────────────────────────────────────────────────────
@@ -206,6 +206,64 @@ function WeekSection({ group, findEx }: { group: WeekGroup; findEx: FindEx }) {
 
 // ── Schermata principale ──────────────────────────────────────────────────────
 
+// ── Griglia 4 settimane (calendario sessioni) ─────────────────────────────────
+
+const WEEKDAYS = ['L', 'M', 'M', 'G', 'V', 'S', 'D'];
+
+function FourWeekGrid({ logs }: { logs: SessionLog[] }) {
+  const t = today();
+
+  // Date con almeno una sessione svolta (volume > 0)
+  const doneDates = new Set<string>();
+  for (const log of logs) {
+    if (sessionVolume(log) > 0) doneDates.add(log.date);
+  }
+
+  // Lunedì della settimana corrente, poi indietro di 3 settimane → 28 giorni
+  const dow    = (parseDate(t).getDay() + 6) % 7;   // 0 = lunedì
+  const curMon = addDays(t, -dow);
+  const start  = addDays(curMon, -21);
+  const days   = Array.from({ length: 28 }, (_, i) => addDays(start, i));
+
+  return (
+    <section className="sl-panel rounded-2xl px-4 py-4 space-y-3 mb-5">
+      <p className="sl-label text-[10px] text-[var(--sl-text-dim)]">Ultime 4 settimane</p>
+
+      <div className="grid grid-cols-7 gap-1.5">
+        {WEEKDAYS.map((d, i) => (
+          <div key={i} className="text-center sl-label text-[9px] text-[var(--sl-text-dim)] pb-0.5">{d}</div>
+        ))}
+        {days.map(d => {
+          const done    = doneDates.has(d);
+          const isToday = d === t;
+          const future  = d > t;
+          const dayNum  = parseDate(d).getDate();
+          return (
+            <div
+              key={d}
+              className={[
+                'aspect-square rounded-lg flex items-center justify-center text-[13px] tabular-nums',
+                done
+                  ? 'bg-emerald-500/90 text-white font-bold border border-emerald-400/50 shadow-[0_0_10px_rgba(16,185,129,0.35)]'
+                  : 'bg-[rgba(56,225,255,0.04)] border border-[var(--sl-line-soft)] text-[var(--sl-text-dim)]',
+                isToday ? 'ring-2 ring-[var(--sl-cyan)]' : '',
+                future  ? 'opacity-35' : '',
+              ].join(' ')}
+            >
+              {dayNum}
+            </div>
+          );
+        })}
+      </div>
+
+      <div className="flex items-center gap-2 pt-0.5">
+        <span className="w-3 h-3 rounded bg-emerald-500/90 border border-emerald-400/50" />
+        <span className="text-[11px] text-[var(--sl-text-dim)]">Sessione svolta</span>
+      </div>
+    </section>
+  );
+}
+
 export function History() {
   const { getAllSessionLogs } = useLogStore();
   const program = useProgramData();
@@ -242,6 +300,9 @@ export function History() {
           )}
         </p>
       </div>
+
+      {/* Calendario ultime 4 settimane */}
+      <FourWeekGrid logs={logs} />
 
       {/* Gruppi settimana */}
       {groups.map(g => (

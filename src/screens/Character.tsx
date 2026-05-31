@@ -237,11 +237,11 @@ function AchievementCard({ icon, name, description, hint, unlocked }: Achievemen
 // ── Schermata principale ──────────────────────────────────────────────────────
 
 const STAT_META = [
-  { key: 'forza'      as const, icon: '⚔️',  label: 'FORZA',      desc: 'Volume sui 5 esercizi multiarticolari principali' },
-  { key: 'resistenza' as const, icon: '🫁',  label: 'RESISTENZA', desc: 'Volume su esercizi ad alto numero di reps e carries' },
+  { key: 'forza'      as const, icon: '⚔️',  label: 'FORZA',      desc: 'Miglior serie sui big lift vs livello avanzato' },
+  { key: 'resistenza' as const, icon: '🫁',  label: 'RESISTENZA', desc: 'Reps e volume sui range alti vs livello avanzato' },
   { key: 'costanza'   as const, icon: '🎯',  label: 'COSTANZA',   desc: 'Sessioni completate su 25 totali del mesociclo' },
-  { key: 'volume'     as const, icon: '📦',  label: 'VOLUME',     desc: 'Volume totale del mesociclo (proxy crescita muscolare)' },
-  { key: 'core'       as const, icon: '🛡️',  label: 'CORE',       desc: 'Volume sugli esercizi anti-movement per la lombare' },
+  { key: 'volume'     as const, icon: '📦',  label: 'VOLUME',     desc: 'Volume totale vs massimo a carichi avanzati' },
+  { key: 'core'       as const, icon: '🛡️',  label: 'CORE',       desc: 'Performance sugli anti-movement vs avanzato' },
 ];
 
 export function Character() {

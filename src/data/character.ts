@@ -3,7 +3,7 @@
 // Modifica i valori di STAT_TARGETS se le stat salgono troppo facilmente al rating S
 // nei mesocicli successivi: alza il target per quella stat e rendi più sfidante il livello.
 
-import { BASE_SESSIONS, type Exercise } from './program';
+import { BASE_SESSIONS, type Exercise, type Session } from './program';
 
 // -------------------------------------------------------------------
 // Classificazione degli esercizi
@@ -37,9 +37,9 @@ export const CORE_ANTI_MOVEMENT_IDS: string[] = [
  * il suo reps target include "12-15", "15-20", "10-15", "passi"
  * oppure se metric === 'meters' (carries).
  */
-export function getEnduranceHighRepsIds(): string[] {
+export function getEnduranceHighRepsIds(sessions: Session[] = BASE_SESSIONS): string[] {
   const ids: string[] = [];
-  for (const session of BASE_SESSIONS) {
+  for (const session of sessions) {
     for (const exercise of session.exercises) {
       if (isEnduranceExercise(exercise)) {
         ids.push(exercise.id);
@@ -58,6 +58,109 @@ function isEnduranceExercise(ex: Exercise): boolean {
     reps.includes('10-15') ||
     reps.includes('passi')
   );
+}
+
+// -------------------------------------------------------------------
+// Riferimenti "livello avanzato" per esercizio
+// -------------------------------------------------------------------
+// reps × kg ≈ la MIGLIORE serie attesa da un atleta AVANZATO (non elite).
+// Le statistiche confrontano la tua miglior serie delle 4 settimane con questi
+// riferimenti: raggiungerli = punteggio pieno (100) per quell'esercizio.
+//   • kg > 0  → esercizio con carico: punteggio = bestSet(reps×kg) / (reps×kg) di rif.
+//   • kg = 0  → corpo libero: punteggio = best reps / reps di rif.
+//   • metric 'meters' (carry) → reps = metri di riferimento.
+// I valori sono basati su standard medi avanzati: modificali liberamente qui
+// se li trovi troppo alti o troppo bassi per il tuo livello.
+
+export interface ExerciseRef { reps: number; kg: number }
+
+export const EXERCISE_REFS: Record<string, ExerciseRef> = {
+  // LUN — Upper Push + Core
+  'lun-1': { reps: 10, kg: 50 },   // Panca piana DB
+  'lun-2': { reps: 12, kg: 40 },   // Panca inclinata 30° DB
+  'lun-3': { reps: 15, kg: 25 },   // Croci ai cavi
+  'lun-4': { reps: 15, kg: 14 },   // Alzate laterali
+  'lun-5': { reps: 12, kg: 45 },   // Pushdown corda
+  'lun-6': { reps: 15, kg: 18 },   // French press DB
+  'lun-7': { reps: 30, kg: 32 },   // Suitcase carry (metri)
+  'lun-8': { reps: 10, kg: 25 },   // Pallof press
+
+  // MAR — Lower + Glutei + Core
+  'mar-1': { reps: 15, kg: 40 },   // Goblet squat
+  'mar-2': { reps: 12, kg: 60 },   // RDL DB
+  'mar-3': { reps: 20, kg: 60 },   // Hip thrust BW + zavorra
+  'mar-4': { reps: 10, kg: 24 },   // Single-leg RDL
+  'mar-5': { reps: 12, kg: 0  },   // Lateral walk elastico
+  'mar-6': { reps: 20, kg: 0  },   // Clamshell elastico
+  'mar-7': { reps: 12, kg: 0  },   // Ab wheel rollout
+  'mar-8': { reps: 30, kg: 16 },   // Bottoms-up KB carry (metri)
+
+  // GIO — Lower Glute-Focused + Core
+  'gio-1': { reps: 10, kg: 200 },  // Hip thrust bilanciere
+  'gio-2': { reps: 12, kg: 40 },   // Bulgarian split squat
+  'gio-3': { reps: 9,  kg: 100 },  // Romanian Deadlift
+  'gio-4': { reps: 15, kg: 200 },  // Leg press piedi alti
+  'gio-5': { reps: 15, kg: 30 },   // Cable hip abduction
+  'gio-6': { reps: 15, kg: 20 },   // Back extension 45°
+  'gio-7': { reps: 8,  kg: 24 },   // Renegade row
+
+  // VEN — Upper Pull + Braccia + Core
+  'ven-1': { reps: 9,  kg: 75 },   // Lat machine pronata
+  'ven-2': { reps: 11, kg: 45 },   // Rematore DB
+  'ven-3': { reps: 12, kg: 75 },   // Pulley basso
+  'ven-4': { reps: 15, kg: 35 },   // Face pull
+  'ven-5': { reps: 12, kg: 18 },   // Curl DB inclinata
+  'ven-6': { reps: 12, kg: 20 },   // Hammer curl
+  'ven-7': { reps: 12, kg: 35 },   // Skull crusher EZ
+  'ven-8': { reps: 40, kg: 32 },   // Farmer carry (metri)
+  'ven-9': { reps: 10, kg: 25 },   // Pallof half-kneeling
+
+  // SAB — Upper Push + Core (casa)
+  'sab-1':  { reps: 12, kg: 20 },  // Push-up zavorrato
+  'sab-2':  { reps: 12, kg: 0  },  // Deficit push-up
+  'sab-3':  { reps: 12, kg: 0  },  // Pike push-up
+  'sab-4':  { reps: 15, kg: 35 },  // Floor press DB
+  'sab-5':  { reps: 15, kg: 0  },  // Croci elastico
+  'sab-6':  { reps: 15, kg: 14 },  // Alzate laterali
+  'sab-7':  { reps: 15, kg: 16 },  // Curl DB
+  'sab-8':  { reps: 15, kg: 0  },  // Pushdown elastico
+  'sab-9':  { reps: 10, kg: 0  },  // Stir-the-pot
+  'sab-10': { reps: 40, kg: 24 },  // Suitcase carry (metri)
+};
+
+/** Carico avanzato di default per muscolo — fallback per programmi custom. */
+const MUSCLE_DEFAULT_KG: Record<string, number> = {
+  Petto: 40, Dorso: 60, Spalle: 16, Bicipiti: 18, Tricipiti: 30,
+  Glutei: 120, Quadricipiti: 80, Femorali: 70, Addome: 0,
+};
+
+/** Estrae il numero di reps di riferimento (il più alto presente nel target). */
+export function parseTopReps(repsTarget: string): number {
+  const nums = (repsTarget.match(/\d+/g) ?? []).map(Number);
+  return nums.length ? Math.max(...nums) : 10;
+}
+
+/** Riferimento per un esercizio: esplicito se noto, altrimenti derivato. */
+export function getExerciseRef(ex: Exercise): ExerciseRef {
+  const explicit = EXERCISE_REFS[ex.id];
+  if (explicit) return explicit;
+  return { reps: parseTopReps(ex.repsTarget), kg: MUSCLE_DEFAULT_KG[ex.muscle] ?? 20 };
+}
+
+/** Volume di riferimento di una serie (0 se a corpo libero). */
+export function refSetVolume(ex: Exercise): number {
+  const r = getExerciseRef(ex);
+  return r.kg > 0 ? r.reps * r.kg : 0;
+}
+
+/** Punteggio 0-1 di un esercizio dato il best set loggato. */
+export function exerciseScore(ex: Exercise, bestVol: number, bestReps: number): number {
+  const r = getExerciseRef(ex);
+  if (r.kg > 0) {
+    const refVol = r.reps * r.kg;
+    return refVol > 0 ? Math.min(1, bestVol / refVol) : 0;
+  }
+  return r.reps > 0 ? Math.min(1, bestReps / r.reps) : 0;
 }
 
 // -------------------------------------------------------------------

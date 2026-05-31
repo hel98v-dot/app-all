@@ -68,12 +68,12 @@ export function ExerciseCard({ exercise, log, onClick, onReset }: ExerciseCardPr
         onClick={() => { setConfirmReset(false); onClick(); }}
         className={[
           'w-full text-left rounded-2xl px-4 py-5 flex items-start gap-4',
-          'border transition-all active:scale-[0.985] active:brightness-90',
+          'transition-all active:scale-[0.985] active:brightness-110',
           confirmReset
-            ? 'bg-rose-950/50 border-rose-700/60'
+            ? 'border bg-rose-950/50 border-rose-700/60'
             : isDone
-              ? 'bg-emerald-950/50 border-emerald-700/60'
-              : 'bg-slate-800     border-slate-700/60',
+              ? 'border bg-emerald-950/45 border-emerald-600/50 shadow-[0_0_16px_rgba(16,185,129,0.12)]'
+              : 'sl-panel',
           // Spazio a destra per il bottone reset (quando il log esiste)
           hasLog ? 'pr-14' : '',
         ].join(' ')}
@@ -83,7 +83,7 @@ export function ExerciseCard({ exercise, log, onClick, onReset }: ExerciseCardPr
           {isDone ? (
             <CheckCircle2 size={26} className="text-emerald-400" strokeWidth={2} />
           ) : hasPartial ? (
-            <Circle size={26} className="text-indigo-400" strokeWidth={2} />
+            <Circle size={26} className="text-[var(--sl-cyan)]" strokeWidth={2} />
           ) : (
             <Circle size={26} className="text-slate-600" strokeWidth={1.75} />
           )}
@@ -130,7 +130,7 @@ export function ExerciseCard({ exercise, log, onClick, onReset }: ExerciseCardPr
           {setsLogged > 0 && (
             <span className={[
               'text-[15px] font-bold tabular-nums',
-              confirmReset ? 'text-rose-400' : isDone ? 'text-emerald-400' : 'text-indigo-400',
+              confirmReset ? 'text-rose-400' : isDone ? 'text-emerald-400' : 'text-[var(--sl-cyan)]',
             ].join(' ')}>
               {setsLogged}/{exercise.prescribedSets}
             </span>
