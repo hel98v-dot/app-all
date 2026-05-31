@@ -2,8 +2,9 @@
 // Aggrega il volume loggato per settimana e per coppia muscolo × settimana.
 
 import { useDeferredValue, useMemo } from 'react';
-import { getMuscleMap, MUSCLES, type Muscle } from '../data/program';
-import { useLogStore }    from './useLogStore';
+import { MUSCLES, type Muscle } from '../data/program';
+import { useLogStore }     from './useLogStore';
+import { useProgramData }  from './useProgramData';
 import type { SessionLog } from '../types';
 
 // ── Tipi pubblici ──────────────────────────────────────────────────────────────
@@ -34,8 +35,7 @@ function emptyPerWeek(): VolumePerWeek {
   return { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
 }
 
-function buildAggregate(sessions: SessionLog[]): VolumeAggregateResult {
-  const muscleMap = getMuscleMap();           // exerciseId → Muscle
+function buildAggregate(sessions: SessionLog[], muscleMap: Record<string, Muscle>): VolumeAggregateResult {
 
   // Struttura iniziale con tutti i muscoli a zero
   const volumePerMuscleAndWeek: VolumePerMuscleAndWeek = Object.fromEntries(
@@ -71,11 +71,13 @@ export interface VolumeAggregateWithStale extends VolumeAggregateResult {
 
 export function useVolumeAggregate(): VolumeAggregateWithStale {
   const { store }   = useLogStore();
+  const program     = useProgramData();
   const deferred    = useDeferredValue(store.sessions);
   const isStale     = deferred !== store.sessions;
 
   const result = useMemo(
-    () => buildAggregate(deferred),
+    () => buildAggregate(deferred, program.getMuscleMap()),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [deferred],
   );
 

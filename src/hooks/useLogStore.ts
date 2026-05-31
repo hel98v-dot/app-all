@@ -5,13 +5,25 @@
 
 import { useCallback, useState } from 'react';
 import type { ExerciseLog, LogStore, SessionLog } from '../types';
+import { logKey } from './useProfileStore';
 import { today } from '../lib/dates';
 
 // -------------------------------------------------------------------
-// Costanti
+// Chiave storage — dipende dal profilo attivo
 // -------------------------------------------------------------------
 
-const STORAGE_KEY = 'training-log-v1';
+function getActiveProfileId(): string {
+  try {
+    const raw = localStorage.getItem('profiles-v1');
+    if (raw) {
+      const s = JSON.parse(raw) as { activeId?: string };
+      if (s.activeId) return s.activeId;
+    }
+  } catch { /* ignore */ }
+  return 'default';
+}
+
+const STORAGE_KEY = logKey(getActiveProfileId());
 
 // -------------------------------------------------------------------
 // Helpers puri (fuori dall'hook — niente re-render)

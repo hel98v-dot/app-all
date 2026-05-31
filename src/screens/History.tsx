@@ -3,9 +3,9 @@
 
 import { useState } from 'react';
 import { ChevronDown, ChevronRight, Dumbbell, Calendar } from 'lucide-react';
-import { useLogStore }    from '../hooks/useLogStore';
-import { findExercise }   from '../data/program';
-import { formatDisplay }  from '../lib/dates';
+import { useLogStore }     from '../hooks/useLogStore';
+import { useProgramData }  from '../hooks/useProgramData';
+import { formatDisplay }   from '../lib/dates';
 import type { ExerciseLog, SessionLog } from '../types';
 
 // ── Calcoli volume ────────────────────────────────────────────────────────────
@@ -45,10 +45,13 @@ function groupByWeek(logs: SessionLog[]): WeekGroup[] {
     .sort((a, b) => b.weekNumber - a.weekNumber);
 }
 
+// Tipo della findExercise passata come prop
+type FindEx = (wk: number, id: string) => { session: { focus: string }; exercise: { name: string } } | undefined;
+
 // ── Componente esercizio dentro una sessione ──────────────────────────────────
 
-function ExerciseRow({ log, weekNumber }: { log: ExerciseLog; weekNumber: number }) {
-  const found = findExercise(weekNumber, log.exerciseId);
+function ExerciseRow({ log, weekNumber, findEx }: { log: ExerciseLog; weekNumber: number; findEx: FindEx }) {
+  const found = findEx(weekNumber, log.exerciseId);
   const name  = found?.exercise.name ?? log.exerciseId;
   const vol   = exerciseVolume(log);
 
@@ -70,6 +73,9 @@ function ExerciseRow({ log, weekNumber }: { log: ExerciseLog; weekNumber: number
             </>
           )}
         </p>
+        {log.notes && (
+          <p className="text-xs text-indigo-300/70 italic mt-0.5">"{log.notes}"</p>
+        )}
       </div>
       {vol > 0 && (
         <span className="text-sm font-semibold tabular-nums text-slate-300 shrink-0">
@@ -82,13 +88,12 @@ function ExerciseRow({ log, weekNumber }: { log: ExerciseLog; weekNumber: number
 
 // ── Componente riga sessione (espandibile) ────────────────────────────────────
 
-function SessionRow({ session }: { session: SessionLog }) {
+function SessionRow({ session, findEx }: { session: SessionLog; findEx: FindEx }) {
   const [open, setOpen] = useState(false);
   const vol = sessionVolume(session);
 
-  // Recupera focus dalla definizione del programma
   const found = session.exercises[0]
-    ? findExercise(session.weekNumber, session.exercises[0].exerciseId)
+    ? findEx(session.weekNumber, session.exercises[0].exerciseId)
     : undefined;
   const focus = found?.session.focus ?? session.sessionId.toUpperCase();
 
@@ -128,7 +133,7 @@ function SessionRow({ session }: { session: SessionLog }) {
             <p className="text-xs text-slate-600 py-2 italic">Nessun esercizio loggato.</p>
           ) : (
             session.exercises.map(ex => (
-              <ExerciseRow key={ex.exerciseId} log={ex} weekNumber={session.weekNumber} />
+              <ExerciseRow key={ex.exerciseId} log={ex} weekNumber={session.weekNumber} findEx={findEx} />
             ))
           )}
         </div>
@@ -139,7 +144,7 @@ function SessionRow({ session }: { session: SessionLog }) {
 
 // ── Componente gruppo settimana (espandibile) ─────────────────────────────────
 
-function WeekSection({ group }: { group: WeekGroup }) {
+function WeekSection({ group, findEx }: { group: WeekGroup; findEx: FindEx }) {
   const [open, setOpen] = useState(true); // ultima settimana aperta di default
 
   return (
@@ -188,7 +193,7 @@ function WeekSection({ group }: { group: WeekGroup }) {
       {open && (
         <div className="space-y-2 pb-2">
           {group.sessions.map(s => (
-            <SessionRow key={s.id} session={s} />
+            <SessionRow key={s.id} session={s} findEx={findEx} />
           ))}
         </div>
       )}
@@ -203,8 +208,9 @@ function WeekSection({ group }: { group: WeekGroup }) {
 
 export function History() {
   const { getAllSessionLogs } = useLogStore();
-  const logs   = getAllSessionLogs();
-  const groups = groupByWeek(logs);
+  const program = useProgramData();
+  const logs    = getAllSessionLogs();
+  const groups  = groupByWeek(logs);
 
   if (groups.length === 0) {
     return (
@@ -239,7 +245,7 @@ export function History() {
 
       {/* Gruppi settimana */}
       {groups.map(g => (
-        <WeekSection key={g.weekNumber} group={g} />
+        <WeekSection key={g.weekNumber} group={g} findEx={program.findExercise} />
       ))}
     </div>
   );

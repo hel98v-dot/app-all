@@ -2,8 +2,8 @@
 // Calcola le statistiche RPG del personaggio sull'intero mesociclo.
 
 import { useDeferredValue, useMemo } from 'react';
-import { getMuscleMap } from '../data/program';
-import { useLogStore }  from './useLogStore';
+import { useLogStore }     from './useLogStore';
+import { useProgramData }  from './useProgramData';
 import type { SessionLog } from '../types';
 import {
   STAT_TARGETS,
@@ -22,11 +22,10 @@ function normalize(actual: number, target: number): number {
 
 // ── Calcolo puro (fuori dall'hook, testabile) ─────────────────────────────────
 
-function buildStats(sessions: SessionLog[]): CharacterStats {
+function buildStats(sessions: SessionLog[], muscleMap: Record<string, string>): CharacterStats {
   const strengthSet  = new Set(STRENGTH_PRIMARY_IDS);
   const coreSet      = new Set(CORE_ANTI_MOVEMENT_IDS);
   const enduranceSet = new Set(getEnduranceHighRepsIds());
-  const muscleMap    = getMuscleMap();          // exerciseId → Muscle
 
   let volForza      = 0;
   let volResistenza = 0;
@@ -111,8 +110,13 @@ export interface CharacterStatsWithStale extends CharacterStats {
 
 export function useCharacterStats(): CharacterStatsWithStale {
   const { store }  = useLogStore();
+  const program    = useProgramData();
   const deferred   = useDeferredValue(store.sessions);
   const isStale    = deferred !== store.sessions;
-  const stats      = useMemo(() => buildStats(deferred), [deferred]);
+  const stats      = useMemo(
+    () => buildStats(deferred, program.getMuscleMap()),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [deferred],
+  );
   return { ...stats, isStale };
 }

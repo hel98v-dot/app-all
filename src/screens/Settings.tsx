@@ -3,15 +3,20 @@ import { useRef, useState } from 'react';
 import {
   Download, Upload, RotateCcw, Trash2,
   Calendar, Info, ChevronRight,
+  User, FileSpreadsheet, Plus, Check, X,
 } from 'lucide-react';
 import { useLogStore }        from '../hooks/useLogStore';
 import { useCurrentSession }  from '../hooks/useCurrentSession';
+import { useProfileStore }    from '../hooks/useProfileStore';
+import { useProgramData, saveCustomProgram, clearCustomProgram } from '../hooks/useProgramData';
 import { useToast }           from '../hooks/useToast';
 import { ToastStack }         from '../components/Toast';
 import { ConfirmDialog }      from '../components/ConfirmDialog';
 import { formatDisplayFull }  from '../lib/dates';
+// Caricamento lazy di xlsx — riduce il bundle iniziale (xlsx ~500KB raw)
+const excelLib = () => import('../lib/excel');
 
-const APP_VERSION = '0.1.0';
+const APP_VERSION = '0.2.0';
 
 // ── Sezione wrapper ───────────────────────────────────────────────────────────
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
@@ -75,9 +80,14 @@ export function Settings() {
   const { weekNumber }    = useCurrentSession(startDate);
   const { toasts, show }  = useToast();
   const fileInputRef      = useRef<HTMLInputElement>(null);
+  const excelImportRef    = useRef<HTMLInputElement>(null);
 
-  // Dialog state
-  const [dialog, setDialog] = useState<'reset-meso' | 'reset-all' | null>(null);
+  const { profiles, activeProfile, createAndActivate, switchProfile, deleteProfile } = useProfileStore();
+  const program = useProgramData();
+
+  const [dialog, setDialog] = useState<'reset-meso' | 'reset-all' | 'del-profile' | null>(null);
+  const [newProfileName, setNewProfileName] = useState('');
+  const [showNewProfile, setShowNewProfile] = useState(false);
 
   // ── Export ────────────────────────────────────────────────────────────────────
   function handleExport() {
@@ -110,6 +120,29 @@ export function Settings() {
     e.target.value = '';
   }
 
+  // ── Import Excel scheda ───────────────────────────────────────────────────────
+  function handleExcelImport(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    excelLib()
+      .then(({ parseScheduleFile }) => parseScheduleFile(file))
+      .then(({ sessions, warnings }) => {
+        saveCustomProgram(sessions);
+        if (warnings.length) show(`Importato con avvisi: ${warnings[0]}`, 'ok');
+        else show(`Scheda importata: ${sessions.length} sessioni ✓`, 'ok');
+      })
+      .catch(err => show(`Errore importazione: ${String(err)}`, 'err'));
+    e.target.value = '';
+  }
+
+  // ── Export Excel log ──────────────────────────────────────────────────────────
+  function handleExcelExport() {
+    excelLib()
+      .then(({ exportLogToExcel }) => exportLogToExcel(program.baseSessions, store.sessions))
+      .then(() => show('Export Excel avviato ✓', 'ok'))
+      .catch(() => show('Errore durante l\'export.', 'err'));
+  }
+
   // ── Stat riepilogo ────────────────────────────────────────────────────────────
   const totalSessions = store.sessions.length;
   const totalVolume   = store.sessions.reduce(
@@ -121,6 +154,140 @@ export function Settings() {
       <div className="px-4 pt-6 pb-10 max-w-lg mx-auto space-y-7">
 
         <h1 className="text-2xl font-bold">Impostazioni</h1>
+
+        {/* ── Profili ─────────────────────────────────────────────────────────── */}
+        <Section title="Profili">
+
+          {/* Lista profili */}
+          {profiles.map(p => (
+            <div key={p.id} className={[
+              'flex items-center gap-3 px-4 py-3.5 rounded-2xl border',
+              p.id === activeProfile?.id
+                ? 'bg-indigo-950/40 border-indigo-700/50'
+                : 'bg-slate-800 border-slate-700/60',
+            ].join(' ')}>
+              <User size={18} className={p.id === activeProfile?.id ? 'text-indigo-400' : 'text-slate-500'} />
+              <span className="flex-1 text-sm font-semibold text-slate-100">{p.name}</span>
+              {p.id === activeProfile?.id
+                ? <span className="text-xs text-indigo-400 font-medium">attivo</span>
+                : <button
+                    onClick={() => switchProfile(p.id)}
+                    className="text-xs text-slate-400 underline min-h-[44px] px-2"
+                  >
+                    Entra
+                  </button>
+              }
+            </div>
+          ))}
+
+          {/* Aggiungi profilo */}
+          {showNewProfile ? (
+            <div className="flex gap-2">
+              <input
+                autoFocus
+                type="text"
+                value={newProfileName}
+                onChange={e => setNewProfileName(e.target.value)}
+                onKeyDown={e => {
+                  if (e.key === 'Enter' && newProfileName.trim()) {
+                    createAndActivate(newProfileName);
+                  }
+                  if (e.key === 'Escape') setShowNewProfile(false);
+                }}
+                placeholder="Nome profilo…"
+                maxLength={30}
+                className="flex-1 bg-slate-800 border border-slate-700 rounded-xl px-3 py-2.5
+                  text-slate-100 text-sm focus:outline-none focus:border-indigo-500"
+              />
+              <button
+                onClick={() => { if (newProfileName.trim()) createAndActivate(newProfileName); }}
+                className="w-11 h-11 rounded-xl bg-indigo-600 flex items-center justify-center"
+              >
+                <Check size={18} className="text-white" />
+              </button>
+              <button
+                onClick={() => setShowNewProfile(false)}
+                className="w-11 h-11 rounded-xl bg-slate-700 flex items-center justify-center"
+              >
+                <X size={18} className="text-slate-300" />
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={() => setShowNewProfile(true)}
+              className="w-full flex items-center gap-3 px-4 py-3.5 min-h-[56px]
+                bg-slate-800 border border-slate-700/60 rounded-2xl
+                text-sm font-semibold text-slate-300 active:bg-slate-700 transition-colors"
+            >
+              <Plus size={18} className="text-indigo-400 shrink-0" />
+              Aggiungi profilo
+            </button>
+          )}
+
+          {/* Elimina profilo attivo */}
+          {profiles.length > 1 && (
+            <button
+              onClick={() => setDialog('del-profile')}
+              className="w-full flex items-center gap-3 px-4 py-3.5 min-h-[56px]
+                bg-slate-800 border border-rose-800/40 rounded-2xl
+                text-sm font-semibold text-rose-400 active:bg-rose-950/30 transition-colors"
+            >
+              <Trash2 size={18} className="shrink-0" />
+              Elimina profilo "{activeProfile?.name}"
+            </button>
+          )}
+        </Section>
+
+        {/* ── Scheda Allenamento (Excel) ─────────────────────────────────────── */}
+        <Section title="Scheda Allenamento">
+
+          {program.isCustom && (
+            <div className="flex items-center gap-3 px-4 py-3 bg-emerald-950/40 border border-emerald-700/40 rounded-2xl">
+              <FileSpreadsheet size={16} className="text-emerald-400 shrink-0" />
+              <span className="text-sm text-emerald-300 flex-1">Scheda personalizzata caricata</span>
+              <button
+                onClick={() => { clearCustomProgram(); }}
+                className="text-xs text-rose-400 underline min-h-[44px] px-2"
+              >
+                Rimuovi
+              </button>
+            </div>
+          )}
+
+          {!program.isCustom && (
+            <div className="px-4 py-3 bg-slate-800/60 border border-slate-700/40 rounded-2xl">
+              <p className="text-xs text-slate-400">
+                Stai usando la scheda di default. Carica il tuo file Excel per usare esercizi personalizzati.
+              </p>
+            </div>
+          )}
+
+          <ActionRow
+            icon={<Download size={18} className="text-indigo-400 shrink-0" />}
+            label="Scarica template Excel"
+            sublabel="Compilalo con i tuoi esercizi"
+            onClick={() => excelLib().then(({ downloadTemplate }) => downloadTemplate())}
+          />
+          <ActionRow
+            icon={<Upload size={18} className="text-indigo-400 shrink-0" />}
+            label="Carica scheda (.xlsx)"
+            sublabel={program.isCustom ? 'Sostituisce la scheda attuale' : 'Carica il tuo file compilato'}
+            onClick={() => excelImportRef.current?.click()}
+          />
+          <ActionRow
+            icon={<FileSpreadsheet size={18} className="text-emerald-400 shrink-0" />}
+            label="Esporta log in Excel"
+            sublabel={`${totalSessions} sessioni con dati compilati`}
+            onClick={handleExcelExport}
+          />
+          <input
+            ref={excelImportRef}
+            type="file"
+            accept=".xlsx,.xls,.ods,.csv"
+            className="hidden"
+            onChange={handleExcelImport}
+          />
+        </Section>
 
         {/* ── Backup ─────────────────────────────────────────────────────────── */}
         <Section title="Backup">
@@ -229,6 +396,18 @@ export function Settings() {
           resetMesocycle();
           setDialog(null);
           show('Blocco riavviato. Log preservati.', 'ok');
+        }}
+        onCancel={() => setDialog(null)}
+      />
+
+      <ConfirmDialog
+        open={dialog === 'del-profile'}
+        title={`Eliminare il profilo "${activeProfile?.name}"?`}
+        description="Verranno eliminati tutti i log e la scheda di questo profilo. Irreversibile."
+        confirmLabel="Elimina profilo"
+        danger
+        onConfirm={() => {
+          if (activeProfile) deleteProfile(activeProfile.id);
         }}
         onCancel={() => setDialog(null)}
       />

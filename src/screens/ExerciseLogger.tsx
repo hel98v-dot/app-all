@@ -3,9 +3,9 @@
 
 import { useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, Check, Info } from 'lucide-react';
+import { ArrowLeft, Check, Info, StickyNote } from 'lucide-react';
 
-import { findExercise }     from '../data/program';
+import { useProgramData }   from '../hooks/useProgramData';
 import type { Muscle }      from '../data/program';
 import { useLogStore }      from '../hooks/useLogStore';
 import { useToast }         from '../hooks/useToast';
@@ -158,13 +158,15 @@ export function ExerciseLogger() {
   const { getExerciseLog, saveExerciseLog } = useLogStore();
   const { toasts, show } = useToast();
 
+  const program    = useProgramData();
   const weekNumber = parseInt(wkStr ?? '1', 10);
   const dateISO    = today();
-  const found      = findExercise(weekNumber, exerciseId ?? '');
+  const found      = program.findExercise(weekNumber, exerciseId ?? '');
 
   const existingLog = getExerciseLog(weekNumber, sessionId ?? '', dateISO, exerciseId ?? '');
 
-  const [sets, setSets] = useState<SetLog[]>(() => {
+  const [notes, setNotes] = useState<string>(existingLog?.notes ?? '');
+  const [sets,  setSets]  = useState<SetLog[]>(() => {
     if (!found) return [];
     const n    = found.exercise.prescribedSets;
     if (existingLog?.sets.length) {
@@ -216,6 +218,7 @@ export function ExerciseLogger() {
       exerciseId:  exercise.id,
       sets,
       completedAt: new Date().toISOString(),
+      ...(notes.trim() ? { notes: notes.trim() } : {}),
     });
 
     if ('vibrate' in navigator) navigator.vibrate(50);
@@ -328,6 +331,23 @@ export function ExerciseLogger() {
                 </div>
               );
             })}
+          </div>
+
+          {/* Note libere */}
+          <div className="space-y-1.5">
+            <label className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-widest text-slate-500">
+              <StickyNote size={12} />
+              Note (opzionale)
+            </label>
+            <textarea
+              value={notes}
+              onChange={e => setNotes(e.target.value)}
+              placeholder="Come ti sei sentito? Carico, tecnica, sensazioni…"
+              rows={3}
+              className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2.5
+                text-slate-200 text-sm placeholder:text-slate-600
+                focus:outline-none focus:border-indigo-500 resize-none"
+            />
           </div>
 
           {/* Volume totale */}
