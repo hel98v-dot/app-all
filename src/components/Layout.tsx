@@ -3,6 +3,7 @@
 // Lo sfondo cambia in base alla route (e all'esercizio aperto).
 import { useLocation, Outlet } from 'react-router-dom';
 import { BottomNav } from './BottomNav';
+import { RestTimerBar } from './RestTimerBar';
 import { ThemeBackground, type Accent } from './ThemeBackground';
 
 /** Chiavi sfondo in ordine di priorità per la route corrente. */
@@ -52,6 +53,7 @@ export function Layout() {
         <Outlet />
       </div>
 
+      <RestTimerBar />
       <BottomNav />
     </div>
   );
