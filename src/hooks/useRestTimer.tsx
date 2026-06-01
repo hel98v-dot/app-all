@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components */
 // src/hooks/useRestTimer.tsx
 // Timer di recupero globale: lo stato vive sopra il router, così il countdown
 // continua anche tornando dalla schermata esercizio alla sessione.

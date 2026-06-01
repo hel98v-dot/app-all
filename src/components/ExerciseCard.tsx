@@ -4,7 +4,7 @@
 // Bottone reset (cestino) con doppio tap di conferma per evitare cancellazioni accidentali.
 
 import { useState }                        from 'react';
-import { CheckCircle2, ChevronRight, Circle, Trash2, AlertCircle } from 'lucide-react';
+import { CheckCircle2, ChevronRight, Circle, Trash2, AlertCircle, Repeat2 } from 'lucide-react';
 import type { Exercise, Muscle }           from '../data/program';
 import type { ExerciseLog }                from '../types';
 
@@ -29,10 +29,14 @@ interface ExerciseCardProps {
   onClick:  () => void;
   /** Chiamata dopo la conferma del reset. */
   onReset?: () => void;
+  /** Apre il selettore di sostituzione esercizio. */
+  onSwap?:  () => void;
+  /** true se questo slot mostra un esercizio sostituto. */
+  isSwapped?: boolean;
 }
 
 // ── Componente ────────────────────────────────────────────────────────────────
-export function ExerciseCard({ exercise, log, onClick, onReset }: ExerciseCardProps) {
+export function ExerciseCard({ exercise, log, onClick, onReset, onSwap, isSwapped }: ExerciseCardProps) {
   const [confirmReset, setConfirmReset] = useState(false);
 
   const setsLogged = log?.sets.length ?? 0;
@@ -74,8 +78,8 @@ export function ExerciseCard({ exercise, log, onClick, onReset }: ExerciseCardPr
             : isDone
               ? 'border bg-emerald-950/45 border-emerald-600/50 shadow-[0_0_16px_rgba(16,185,129,0.12)]'
               : 'sl-panel',
-          // Spazio a destra per il bottone reset (quando il log esiste)
-          hasLog ? 'pr-14' : '',
+          // Spazio a destra per i bottoni azione (swap / reset)
+          (hasLog || onSwap) ? 'pr-14' : '',
         ].join(' ')}
       >
         {/* Icona stato */}
@@ -100,6 +104,12 @@ export function ExerciseCard({ exercise, log, onClick, onReset }: ExerciseCardPr
             </span>
             {exercise.unilateral && (
               <span className="text-xs text-slate-400 font-normal self-center">(per lato)</span>
+            )}
+            {isSwapped && (
+              <span className="inline-flex items-center gap-1 self-center text-[10px] font-semibold
+                px-2 py-0.5 rounded-full bg-[rgba(56,225,255,0.12)] text-[var(--sl-cyan-soft)] border border-[var(--sl-line)]">
+                <Repeat2 size={10} strokeWidth={2.5} /> sostituito
+              </span>
             )}
           </div>
 
@@ -143,26 +153,38 @@ export function ExerciseCard({ exercise, log, onClick, onReset }: ExerciseCardPr
         </div>
       </button>
 
-      {/* ── Bottone reset — sovrapposto in alto a destra ───────────────────── */}
-      {hasLog && onReset && (
-        <button
-          onClick={handleResetTap}
-          aria-label={confirmReset ? 'Conferma reset' : 'Ripristina esercizio'}
-          className={[
-            // Touch target 48×48px
-            'absolute top-1/2 right-3 -translate-y-1/2',
-            'flex items-center justify-center w-12 h-12 rounded-xl',
-            'transition-all',
-            confirmReset
-              ? 'bg-rose-600 text-white scale-110'
-              : 'bg-slate-700/80 text-slate-400 active:bg-rose-800 active:text-rose-200',
-          ].join(' ')}
-        >
-          {confirmReset
-            ? <Trash2 size={18} strokeWidth={2.5} />
-            : <Trash2 size={16} strokeWidth={2} />
-          }
-        </button>
+      {/* ── Azioni sovrapposte — stack verticale a destra (swap + reset) ───── */}
+      {(onSwap || (hasLog && onReset)) && (
+        <div className="absolute top-1/2 right-2 -translate-y-1/2 flex flex-col gap-1.5">
+          {onSwap && (
+            <button
+              onClick={e => { e.stopPropagation(); setConfirmReset(false); onSwap(); }}
+              aria-label="Sostituisci esercizio"
+              className="flex items-center justify-center w-11 h-11 rounded-xl
+                text-[var(--sl-cyan-soft)] bg-[rgba(56,225,255,0.10)] border border-[var(--sl-line)]
+                active:bg-[rgba(56,225,255,0.2)]"
+            >
+              <Repeat2 size={17} strokeWidth={2} />
+            </button>
+          )}
+          {hasLog && onReset && (
+            <button
+              onClick={handleResetTap}
+              aria-label={confirmReset ? 'Conferma reset' : 'Ripristina esercizio'}
+              className={[
+                'flex items-center justify-center w-11 h-11 rounded-xl transition-all',
+                confirmReset
+                  ? 'bg-rose-600 text-white scale-110'
+                  : 'bg-slate-700/80 text-slate-400 active:bg-rose-800 active:text-rose-200',
+              ].join(' ')}
+            >
+              {confirmReset
+                ? <Trash2 size={18} strokeWidth={2.5} />
+                : <Trash2 size={16} strokeWidth={2} />
+              }
+            </button>
+          )}
+        </div>
       )}
     </div>
   );

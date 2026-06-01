@@ -2,9 +2,10 @@
 // Tre tabelle: volume assoluto, WoW % e vs Settimana 1 %.
 
 import { useState }            from 'react';
-import { BarChart3, Info }     from 'lucide-react';
+import { BarChart3, Info } from 'lucide-react';
 import { type Muscle } from '../data/program';
 import { useVolumeAggregate, pctChange, type VolumePerWeek, type VolumePerMuscleAndWeek } from '../hooks/useVolumeAggregate';
+import { Sparkline }           from '../components/Sparkline';
 
 // ── Configurazione ─────────────────────────────────────────────────────────────
 
@@ -281,11 +282,59 @@ function VsWeek1Table({ volumePerMuscleAndWeek, volumePerWeek }: TableProps) {
   );
 }
 
+// ── Sezione 4: Andamento (sparkline) ──────────────────────────────────────────
+
+function TrendSection({ volumePerMuscleAndWeek, volumePerWeek }: TableProps) {
+  const lastWeek = ([5, 4, 3, 2, 1] as const).find(wk => (volumePerWeek[wk] ?? 0) > 0) ?? 1;
+  const weeks = WEEKS.filter(wk => wk <= lastWeek);
+  const totalPoints = weeks.map(wk => volumePerWeek[wk] ?? 0);
+  const musclesWithData = MUSCLE_ORDER.filter(m =>
+    weeks.some(wk => (volumePerMuscleAndWeek[m][wk] ?? 0) > 0));
+
+  return (
+    <>
+      <SectionHeader title="Andamento" subtitle={`Volume settimanale (S1 → S${lastWeek})`} />
+
+      {/* Totale */}
+      <div className="rounded-xl border border-[var(--sl-line-soft)] bg-[rgba(56,225,255,0.05)] px-3 py-3 mb-3">
+        <div className="flex items-center justify-between mb-1.5">
+          <span className="sl-label text-[10px] text-[var(--sl-text-dim)]">Totale · S{lastWeek}</span>
+          <span className="text-base font-bold text-white tabular-nums">{fmtVol(volumePerWeek[lastWeek] ?? 0)}</span>
+        </div>
+        {totalPoints.length >= 2
+          ? <Sparkline points={totalPoints} height={46} className="w-full" dot={false} />
+          : <p className="text-xs text-[var(--sl-text-dim)]">Servono almeno 2 settimane di dati.</p>}
+      </div>
+
+      {/* Per muscolo */}
+      <div className="grid grid-cols-2 gap-2">
+        {musclesWithData.map(m => {
+          const pts = weeks.map(wk => volumePerMuscleAndWeek[m][wk] ?? 0);
+          return (
+            <div key={m} className="rounded-xl border border-[var(--sl-line-soft)] bg-[rgba(56,225,255,0.03)] px-3 py-2.5">
+              <div className="flex items-center justify-between mb-1 gap-1">
+                <span className="text-xs font-medium text-slate-300 truncate">{m}</span>
+                <span className="text-[11px] font-bold text-slate-200 tabular-nums shrink-0">
+                  {fmtVol(volumePerMuscleAndWeek[m][lastWeek] ?? 0)}
+                </span>
+              </div>
+              {pts.length >= 2
+                ? <Sparkline points={pts} height={26} className="w-full" dot={false} />
+                : <div className="h-[26px]" />}
+            </div>
+          );
+        })}
+      </div>
+    </>
+  );
+}
+
 // ── Navigazione sezioni ───────────────────────────────────────────────────────
 
-type TabId = 'assoluto' | 'wow' | 'vs1';
+type TabId = 'trend' | 'assoluto' | 'wow' | 'vs1';
 
 const TABS: { id: TabId; label: string }[] = [
+  { id: 'trend',    label: 'Trend'    },
   { id: 'assoluto', label: 'Assoluto' },
   { id: 'wow',      label: 'WoW %'    },
   { id: 'vs1',      label: 'vs Sett 1'},
@@ -295,7 +344,7 @@ const TABS: { id: TabId; label: string }[] = [
 
 export function Volume() {
   const { volumePerWeek, volumePerMuscleAndWeek, isStale } = useVolumeAggregate();
-  const [tab, setTab] = useState<TabId>('assoluto');
+  const [tab, setTab] = useState<TabId>('trend');
   const tableProps: TableProps = { volumePerMuscleAndWeek, volumePerWeek };
 
   const hasAnyData = Object.values(volumePerWeek).some(v => v > 0);
@@ -345,6 +394,7 @@ export function Volume() {
       {/* Tabella attiva */}
       <div className="sl-panel rounded-2xl overflow-hidden">
         <div className="p-3">
+          {tab === 'trend'    && <TrendSection  {...tableProps} />}
           {tab === 'assoluto' && <AbsoluteTable {...tableProps} />}
           {tab === 'wow'      && <WoWTable      {...tableProps} />}
           {tab === 'vs1'      && <VsWeek1Table  {...tableProps} />}

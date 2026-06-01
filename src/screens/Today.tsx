@@ -1,16 +1,25 @@
 // src/screens/Today.tsx
-import { useState }          from 'react';
+import { useMemo, useState } from 'react';
 import { useNavigate }       from 'react-router-dom';
 import {
   MapPin, Moon, Footprints,
   AlertTriangle, CheckCircle2,
 } from 'lucide-react';
-import { TOTAL_WEEKS, type DayKey } from '../data/program';
+import { TOTAL_WEEKS, type DayKey, type Exercise, type Muscle } from '../data/program';
 import { useLogStore }        from '../hooks/useLogStore';
 import { useCurrentSession }  from '../hooks/useCurrentSession';
 import { useProgramData }     from '../hooks/useProgramData';
+import { useSwaps }           from '../hooks/useSwaps';
 import { ExerciseCard }       from '../components/ExerciseCard';
+import { SwapPicker }         from '../components/SwapPicker';
 import { formatDisplay }      from '../lib/dates';
+
+interface SwapTarget {
+  originalId:     string;
+  effective:      Exercise;
+  priorityMuscle: Muscle;
+  isSwapped:      boolean;
+}
 
 export function Today() {
   const { startDate, getExerciseLog, clearExerciseLog } = useLogStore();
@@ -24,6 +33,20 @@ export function Today() {
   });
 
   const navigate = useNavigate();
+  const { getSwap, setSwap, clearSwap } = useSwaps();
+  const [swapTarget, setSwapTarget] = useState<SwapTarget | null>(null);
+
+  // Tutti gli esercizi unici del programma (candidati per la sostituzione)
+  const allExercises = useMemo(() => {
+    const seen = new Set<string>();
+    const list: Exercise[] = [];
+    for (const s of program.baseSessions) {
+      for (const ex of s.exercises) {
+        if (!seen.has(ex.id)) { seen.add(ex.id); list.push(ex); }
+      }
+    }
+    return list;
+  }, [program]);
 
   const sessionTabs = program.baseSessions.map(s => ({
     dayKey:    s.day,
@@ -35,11 +58,22 @@ export function Today() {
   const week    = program.getWeek(selectedWeek)!;
   const session = program.getSession(selectedWeek, selectedDay);
 
-  const totalExercises = session?.exercises.length ?? 0;
-  const completedCount = session?.exercises.filter(ex => {
-    const log = getExerciseLog(selectedWeek, session!.id, dateISO, ex.id);
-    return (log?.sets.length ?? 0) >= ex.prescribedSets;
-  }).length ?? 0;
+  // Applica le sostituzioni: ogni slot può puntare a un esercizio alternativo
+  const effectiveExercises = session
+    ? session.exercises.map(original => {
+        const subId = getSwap(selectedWeek, session.id, original.id);
+        const effective = subId
+          ? (program.findExercise(selectedWeek, subId)?.exercise ?? original)
+          : original;
+        return { original, effective, isSwapped: !!subId && effective.id !== original.id };
+      })
+    : [];
+
+  const totalExercises = effectiveExercises.length;
+  const completedCount = effectiveExercises.filter(({ effective }) => {
+    const log = getExerciseLog(selectedWeek, session!.id, dateISO, effective.id);
+    return (log?.sets.length ?? 0) >= effective.prescribedSets;
+  }).length;
   const pct           = totalExercises > 0 ? Math.round((completedCount / totalExercises) * 100) : 0;
   const isSessionDone = totalExercises > 0 && completedCount === totalExercises;
 
@@ -180,15 +214,17 @@ export function Today() {
 
           {/* Lista esercizi */}
           <div className="space-y-2.5">
-            {session.exercises.map(exercise => {
-              const log = getExerciseLog(selectedWeek, session.id, dateISO, exercise.id);
+            {effectiveExercises.map(({ original, effective, isSwapped }) => {
+              const log = getExerciseLog(selectedWeek, session.id, dateISO, effective.id);
               return (
                 <ExerciseCard
-                  key={exercise.id}
-                  exercise={exercise}
+                  key={original.id}
+                  exercise={effective}
                   log={log}
-                  onClick={() => navigate(`/esercizio/${selectedWeek}/${session.id}/${exercise.id}`)}
-                  onReset={() => clearExerciseLog(selectedWeek, session.id, dateISO, exercise.id)}
+                  isSwapped={isSwapped}
+                  onClick={() => navigate(`/esercizio/${selectedWeek}/${session.id}/${effective.id}`)}
+                  onReset={() => clearExerciseLog(selectedWeek, session.id, dateISO, effective.id)}
+                  onSwap={() => setSwapTarget({ originalId: original.id, effective, priorityMuscle: original.muscle, isSwapped })}
                 />
               );
             })}
@@ -205,6 +241,19 @@ export function Today() {
             </div>
           )}
         </>
+      )}
+
+      {/* Selettore sostituzione esercizio */}
+      {swapTarget && session && (
+        <SwapPicker
+          current={swapTarget.effective}
+          priorityMuscle={swapTarget.priorityMuscle}
+          candidates={allExercises}
+          isSwapped={swapTarget.isSwapped}
+          onPick={id => { setSwap(selectedWeek, session.id, swapTarget.originalId, id); setSwapTarget(null); }}
+          onRevert={() => { clearSwap(selectedWeek, session.id, swapTarget.originalId); setSwapTarget(null); }}
+          onClose={() => setSwapTarget(null)}
+        />
       )}
     </div>
   );

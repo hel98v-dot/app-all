@@ -60,6 +60,7 @@ export function Sparkline({ points, width = 104, height = 30, className, dot = t
         strokeWidth="1.75"
         strokeLinejoin="round"
         strokeLinecap="round"
+        vectorEffect="non-scaling-stroke"
       />
       {dot && <circle cx={lastX} cy={lastY} r="2.4" fill="var(--sl-cyan-soft)" />}
     </svg>
