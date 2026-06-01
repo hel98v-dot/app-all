@@ -205,8 +205,8 @@ function AchievementCard({ icon, name, description, hint, unlocked }: Achievemen
       className={[
         'rounded-2xl border px-4 py-3.5 flex items-start gap-3 transition-all',
         unlocked
-          ? 'bg-slate-800 border-yellow-600/40'
-          : 'bg-slate-900 border-slate-800 opacity-45',
+          ? 'bg-[rgba(30,28,16,0.55)] border-yellow-600/40 backdrop-blur-sm'
+          : 'bg-[rgba(8,12,22,0.5)] border-[var(--sl-line-soft)] opacity-45 backdrop-blur-sm',
       ].join(' ')}
       style={unlocked ? {
         boxShadow: '0 0 12px rgba(255,215,0,0.12)',

@@ -69,8 +69,8 @@ export function Today() {
                   'text-xs font-bold min-h-[48px] transition-colors relative',
                   isActive
                     ? isDeload ? 'bg-amber-600 border-amber-500 text-white'
-                               : 'bg-indigo-600 border-indigo-500 text-white'
-                    : 'bg-slate-800 border-slate-700 text-slate-400 active:bg-slate-700',
+                               : 'bg-[var(--sl-cyan)] border-[var(--sl-cyan-soft)] text-[#06121e] shadow-[0_0_12px_var(--sl-glow)]'
+                    : 'bg-[rgba(56,225,255,0.05)] border-[var(--sl-line-soft)] text-[var(--sl-text-dim)] active:bg-[rgba(56,225,255,0.12)]',
                 ].join(' ')}
               >
                 <span>S{wk}</span>
@@ -80,7 +80,7 @@ export function Today() {
                   </span>
                 )}
                 {isCurrent && !isActive && (
-                  <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 rounded-full bg-indigo-400" />
+                  <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 rounded-full bg-[var(--sl-cyan)]" />
                 )}
               </button>
             );
@@ -111,8 +111,8 @@ export function Today() {
                   'flex-1 flex flex-col items-center justify-center py-2 rounded-xl border',
                   'text-xs font-bold min-h-[48px] transition-colors relative',
                   isActive
-                    ? 'bg-slate-600 border-slate-400 text-white'
-                    : 'bg-slate-800 border-slate-700 text-slate-400 active:bg-slate-700',
+                    ? 'bg-[rgba(56,225,255,0.16)] border-[var(--sl-cyan)] text-[var(--sl-cyan-soft)]'
+                    : 'bg-[rgba(56,225,255,0.05)] border-[var(--sl-line-soft)] text-[var(--sl-text-dim)] active:bg-[rgba(56,225,255,0.12)]',
                 ].join(' ')}
               >
                 <span>{tab.short}</span>
@@ -138,13 +138,13 @@ export function Today() {
 
       {/* Nessuna sessione */}
       {!session && (
-        <div className="rounded-3xl bg-slate-800 border border-slate-700 px-5 py-8 flex flex-col items-center text-center gap-4">
+        <div className="sl-panel rounded-3xl px-5 py-8 flex flex-col items-center text-center gap-4">
           <Moon size={48} className="text-slate-600" strokeWidth={1.25} />
           <div>
             <h2 className="text-lg font-bold">Nessuna sessione</h2>
             <p className="text-slate-400 text-sm mt-1">Questo giorno non ha una sessione nel programma.</p>
           </div>
-          <div className="w-full rounded-2xl bg-slate-700/60 border border-slate-600/50 px-4 py-3 flex items-center gap-3">
+          <div className="w-full rounded-2xl bg-[rgba(56,225,255,0.06)] border border-[var(--sl-line-soft)] px-4 py-3 flex items-center gap-3">
             <Footprints size={20} className="text-amber-400 shrink-0" strokeWidth={1.75} />
             <p className="text-sm text-slate-300 text-left">
               <span className="font-semibold text-amber-300">NEAT:</span> 8.000–10.000 passi consigliati.
@@ -170,9 +170,9 @@ export function Today() {
               <span>{completedCount} / {totalExercises} esercizi completati</span>
               <span className="font-semibold text-slate-400">{pct}%</span>
             </div>
-            <div className="h-2 rounded-full bg-slate-800 overflow-hidden">
+            <div className="h-2 rounded-full bg-[rgba(6,10,20,0.7)] border border-[var(--sl-line-soft)] overflow-hidden">
               <div
-                className={['h-full rounded-full transition-all duration-500', isSessionDone ? 'bg-emerald-500' : 'bg-indigo-500'].join(' ')}
+                className={['h-full rounded-full transition-all duration-500', isSessionDone ? 'bg-emerald-500' : 'bg-[var(--sl-cyan)] shadow-[0_0_10px_var(--sl-glow)]'].join(' ')}
                 style={{ width: `${pct}%` }}
               />
             </div>

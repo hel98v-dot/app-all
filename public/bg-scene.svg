@@ -1,0 +1,51 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 900" width="800" height="900" fill="none">
+  <defs>
+    <radialGradient id="core" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#9af2ff" stop-opacity="0.9"/>
+      <stop offset="0.4" stop-color="#38e1ff" stop-opacity="0.45"/>
+      <stop offset="1" stop-color="#38e1ff" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="g" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="6"/>
+    </filter>
+  </defs>
+
+  <!-- Bagliore del portale -->
+  <ellipse cx="400" cy="300" rx="240" ry="240" fill="url(#core)" opacity="0.5"/>
+
+  <!-- Cancello esagonale (3 anelli concentrici) -->
+  <g stroke="#38e1ff" fill="none" filter="url(#g)">
+    <polygon points="400,70 600,185 600,415 400,530 200,415 200,185" stroke-opacity="0.32" stroke-width="3"/>
+    <polygon points="400,120 557,210 557,390 400,480 243,390 243,210" stroke-opacity="0.22" stroke-width="2.5"/>
+    <polygon points="400,175 515,242 515,358 400,425 285,358 285,242" stroke-opacity="0.5" stroke-width="2"/>
+  </g>
+
+  <!-- Raggi di luce -->
+  <g fill="#38e1ff" opacity="0.06">
+    <polygon points="400,300 360,900 440,900"/>
+    <polygon points="400,300 250,900 300,900"/>
+    <polygon points="400,300 500,900 550,900"/>
+  </g>
+
+  <!-- Particelle ascendenti (cyan/viola) -->
+  <g>
+    <circle cx="150" cy="520" r="3" fill="#38e1ff" opacity="0.5"/>
+    <circle cx="220" cy="640" r="2" fill="#8b5cff" opacity="0.5"/>
+    <circle cx="120" cy="700" r="4" fill="#38e1ff" opacity="0.35"/>
+    <circle cx="300" cy="600" r="2.5" fill="#8b5cff" opacity="0.45"/>
+    <circle cx="380" cy="720" r="3" fill="#38e1ff" opacity="0.4"/>
+    <circle cx="470" cy="640" r="2" fill="#9af2ff" opacity="0.55"/>
+    <circle cx="560" cy="560" r="3.5" fill="#38e1ff" opacity="0.35"/>
+    <circle cx="640" cy="680" r="2.5" fill="#8b5cff" opacity="0.45"/>
+    <circle cx="680" cy="540" r="3" fill="#38e1ff" opacity="0.4"/>
+    <circle cx="520" cy="760" r="2" fill="#9af2ff" opacity="0.5"/>
+    <circle cx="250" cy="780" r="3" fill="#38e1ff" opacity="0.3"/>
+    <circle cx="700" cy="760" r="2.5" fill="#8b5cff" opacity="0.4"/>
+    <circle cx="90"  cy="600" r="2" fill="#9af2ff" opacity="0.45"/>
+    <circle cx="430" cy="540" r="2" fill="#9af2ff" opacity="0.6"/>
+    <circle cx="330" cy="500" r="2.5" fill="#38e1ff" opacity="0.4"/>
+    <circle cx="600" cy="470" r="2" fill="#8b5cff" opacity="0.5"/>
+    <circle cx="180" cy="430" r="2" fill="#38e1ff" opacity="0.35"/>
+    <circle cx="620" cy="300" r="2.5" fill="#9af2ff" opacity="0.4"/>
+  </g>
+</svg>

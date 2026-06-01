@@ -40,7 +40,7 @@ function fmtPct(ratio: number | null): string {
 
 // Classi Tailwind per la cella Δ%
 function deltaCell(ratio: number | null): string {
-  if (ratio === null || ratio === 0) return 'bg-transparent text-slate-500';
+  if (ratio === null || ratio === 0) return 'bg-transparent text-[var(--sl-text-dim)]';
   return ratio > 0
     ? 'bg-emerald-900/50 text-emerald-300'
     : 'bg-rose-900/50   text-rose-300';
@@ -52,7 +52,7 @@ function SectionHeader({ title, subtitle }: { title: string; subtitle?: string }
   return (
     <div className="mb-2 pt-2">
       <h2 className="text-base font-bold text-slate-100">{title}</h2>
-      {subtitle && <p className="text-xs text-slate-500 mt-0.5">{subtitle}</p>}
+      {subtitle && <p className="text-xs text-[var(--sl-text-dim)] mt-0.5">{subtitle}</p>}
     </div>
   );
 }
@@ -73,10 +73,10 @@ function TableScroll({ children }: { children: React.ReactNode }) {
 function Th({ children, sticky }: { children: React.ReactNode; sticky?: boolean }) {
   return (
     <th className={[
-      'py-2 px-2 text-[11px] font-semibold uppercase tracking-wider text-slate-400',
-      'border-b border-slate-700',
+      'py-2 px-2 text-[11px] font-semibold uppercase tracking-wider text-[var(--sl-text-dim)]',
+      'border-b border-[var(--sl-line)]',
       sticky
-        ? 'sticky left-0 z-10 bg-slate-900 text-left min-w-[90px]'
+        ? 'sticky left-0 z-10 bg-[rgba(7,12,24,0.92)] text-left min-w-[90px]'
         : 'text-right',
     ].join(' ')}>
       {children}
@@ -87,7 +87,7 @@ function Th({ children, sticky }: { children: React.ReactNode; sticky?: boolean 
 // Cella muscolo (sticky)
 function MuscleCell({ muscle }: { muscle: string }) {
   return (
-    <td className="sticky left-0 z-10 bg-slate-900 py-2.5 px-2 text-sm font-medium text-slate-200 whitespace-nowrap">
+    <td className="sticky left-0 z-10 bg-[rgba(7,12,24,0.92)] py-2.5 px-2 text-sm font-medium text-slate-200 whitespace-nowrap">
       {muscle}
     </td>
   );
@@ -98,7 +98,7 @@ function VolumeCell({ value }: { value: number }) {
   return (
     <td className={[
       'py-2.5 px-2 text-right tabular-nums text-sm',
-      value > 0 ? 'text-slate-200' : 'text-slate-600',
+      value > 0 ? 'text-slate-200' : 'text-[var(--sl-text-dim)]',
     ].join(' ')}>
       {fmtVol(value)}
     </td>
@@ -142,7 +142,7 @@ function AbsoluteTable({ volumePerMuscleAndWeek, volumePerWeek }: TableProps) {
         </thead>
         <tbody>
           {MUSCLE_ORDER.map(muscle => (
-            <tr key={muscle} className="border-b border-slate-800/60">
+            <tr key={muscle} className="border-b border-[var(--sl-line-soft)]">
               <MuscleCell muscle={muscle} />
               {WEEKS.map(wk => (
                 <VolumeCell key={wk} value={volumePerMuscleAndWeek[muscle][wk] ?? 0} />
@@ -151,12 +151,12 @@ function AbsoluteTable({ volumePerMuscleAndWeek, volumePerWeek }: TableProps) {
           ))}
 
           {/* Riga TOTALE */}
-          <tr className="border-t border-slate-600">
-            <td className="sticky left-0 z-10 bg-slate-800 py-2.5 px-2 text-sm font-bold text-slate-100">
+          <tr className="border-t border-[var(--sl-line)]">
+            <td className="sticky left-0 z-10 bg-[rgba(56,225,255,0.06)] py-2.5 px-2 text-sm font-bold text-slate-100">
               Totale
             </td>
             {WEEKS.map(wk => (
-              <td key={wk} className="py-2.5 px-2 text-right tabular-nums text-sm font-bold text-slate-100 bg-slate-800">
+              <td key={wk} className="py-2.5 px-2 text-right tabular-nums text-sm font-bold text-slate-100 bg-[rgba(56,225,255,0.06)]">
                 {fmtVol(volumePerWeek[wk] ?? 0)}
               </td>
             ))}
@@ -190,7 +190,7 @@ function WoWTable({ volumePerMuscleAndWeek, volumePerWeek }: TableProps) {
         </thead>
         <tbody>
           {MUSCLE_ORDER.map(muscle => (
-            <tr key={muscle} className="border-b border-slate-800/60">
+            <tr key={muscle} className="border-b border-[var(--sl-line-soft)]">
               <MuscleCell muscle={muscle} />
               {WOW_PAIRS.map(([a, b]) => {
                 const ratio = pctChange(
@@ -203,15 +203,15 @@ function WoWTable({ volumePerMuscleAndWeek, volumePerWeek }: TableProps) {
           ))}
 
           {/* Riga TOTALE */}
-          <tr className="border-t border-slate-600">
-            <td className="sticky left-0 z-10 bg-slate-800 py-2.5 px-2 text-sm font-bold text-slate-100">
+          <tr className="border-t border-[var(--sl-line)]">
+            <td className="sticky left-0 z-10 bg-[rgba(56,225,255,0.06)] py-2.5 px-2 text-sm font-bold text-slate-100">
               Totale
             </td>
             {WOW_PAIRS.map(([a, b]) => {
               const ratio = pctChange(volumePerWeek[a] ?? 0, volumePerWeek[b] ?? 0);
               return (
                 <td key={`${a}→${b}`} className={[
-                  'py-2.5 px-2 text-right tabular-nums text-xs font-bold rounded bg-slate-800',
+                  'py-2.5 px-2 text-right tabular-nums text-xs font-bold rounded bg-[rgba(56,225,255,0.06)]',
                   deltaCell(ratio),
                 ].join(' ')}>
                   {fmtPct(ratio)}
@@ -246,7 +246,7 @@ function VsWeek1Table({ volumePerMuscleAndWeek, volumePerWeek }: TableProps) {
         </thead>
         <tbody>
           {MUSCLE_ORDER.map(muscle => (
-            <tr key={muscle} className="border-b border-slate-800/60">
+            <tr key={muscle} className="border-b border-[var(--sl-line-soft)]">
               <MuscleCell muscle={muscle} />
               {VS1_WEEKS.map(wk => {
                 const ratio = pctChange(
@@ -259,15 +259,15 @@ function VsWeek1Table({ volumePerMuscleAndWeek, volumePerWeek }: TableProps) {
           ))}
 
           {/* Riga TOTALE */}
-          <tr className="border-t border-slate-600">
-            <td className="sticky left-0 z-10 bg-slate-800 py-2.5 px-2 text-sm font-bold text-slate-100">
+          <tr className="border-t border-[var(--sl-line)]">
+            <td className="sticky left-0 z-10 bg-[rgba(56,225,255,0.06)] py-2.5 px-2 text-sm font-bold text-slate-100">
               Totale
             </td>
             {VS1_WEEKS.map(wk => {
               const ratio = pctChange(volumePerWeek[1] ?? 0, volumePerWeek[wk] ?? 0);
               return (
                 <td key={wk} className={[
-                  'py-2.5 px-2 text-right tabular-nums text-xs font-bold rounded bg-slate-800',
+                  'py-2.5 px-2 text-right tabular-nums text-xs font-bold rounded bg-[rgba(56,225,255,0.06)]',
                   deltaCell(ratio),
                 ].join(' ')}>
                   {fmtPct(ratio)}
@@ -305,7 +305,7 @@ export function Volume() {
       <div className="flex flex-col items-center justify-center min-h-[70vh] gap-4 px-6 text-center">
         <BarChart3 size={52} className="text-slate-700" strokeWidth={1.25} />
         <h1 className="sl-heading text-2xl">Volume</h1>
-        <p className="text-slate-500 text-sm max-w-xs">
+        <p className="text-[var(--sl-text-dim)] text-sm max-w-xs">
           Nessun dato ancora. Loga qualche sessione per vedere i grafici di volume.
         </p>
       </div>
@@ -318,23 +318,23 @@ export function Volume() {
       {/* Header */}
       <div>
         <h1 className="sl-heading text-2xl">Volume</h1>
-        <p className="text-slate-500 text-sm mt-0.5 flex items-center gap-1">
+        <p className="text-[var(--sl-text-dim)] text-sm mt-0.5 flex items-center gap-1">
           <Info size={12} />
           Volume = reps × kg per serie
         </p>
       </div>
 
       {/* Tab switcher */}
-      <div className="flex gap-1 bg-slate-800 rounded-xl p-1">
+      <div className="flex gap-1 bg-[rgba(56,225,255,0.06)] rounded-xl p-1">
         {TABS.map(t => (
           <button
             key={t.id}
             onClick={() => setTab(t.id)}
             className={[
-              'flex-1 py-2 rounded-lg text-xs font-semibold transition-colors',
+              'flex-1 py-2 rounded-lg text-xs font-semibold transition-colors sl-label text-[10px]',
               tab === t.id
-                ? 'bg-indigo-600 text-white'
-                : 'text-slate-400 active:text-slate-200',
+                ? 'bg-[var(--sl-cyan)] text-[#06121e] shadow-[0_0_14px_var(--sl-glow)]'
+                : 'text-[var(--sl-text-dim)] active:text-slate-200',
             ].join(' ')}
           >
             {t.label}
@@ -343,7 +343,7 @@ export function Volume() {
       </div>
 
       {/* Tabella attiva */}
-      <div className="bg-slate-900 rounded-2xl overflow-hidden border border-slate-800">
+      <div className="sl-panel rounded-2xl overflow-hidden">
         <div className="p-3">
           {tab === 'assoluto' && <AbsoluteTable {...tableProps} />}
           {tab === 'wow'      && <WoWTable      {...tableProps} />}
@@ -354,16 +354,16 @@ export function Volume() {
       {/* Legenda */}
       {(tab === 'wow' || tab === 'vs1') && (
         <div className="flex items-center gap-4 px-1">
-          <span className="flex items-center gap-1.5 text-xs text-slate-400">
+          <span className="flex items-center gap-1.5 text-xs text-[var(--sl-text-dim)]">
             <span className="w-3 h-3 rounded-sm bg-emerald-800 inline-block" />
             Aumento
           </span>
-          <span className="flex items-center gap-1.5 text-xs text-slate-400">
+          <span className="flex items-center gap-1.5 text-xs text-[var(--sl-text-dim)]">
             <span className="w-3 h-3 rounded-sm bg-rose-900 inline-block" />
             Diminuzione
           </span>
-          <span className="flex items-center gap-1.5 text-xs text-slate-400">
-            <span className="text-slate-500 font-bold">—</span>
+          <span className="flex items-center gap-1.5 text-xs text-[var(--sl-text-dim)]">
+            <span className="text-[var(--sl-text-dim)] font-bold">—</span>
             <span>Nessun dato</span>
           </span>
         </div>

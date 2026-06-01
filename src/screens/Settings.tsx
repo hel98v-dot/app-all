@@ -23,7 +23,7 @@ const APP_VERSION = '0.2.0';
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <section className="space-y-2.5">
-      <h2 className="text-[11px] font-bold uppercase tracking-[0.12em] text-slate-500 px-1">
+      <h2 className="sl-label text-[10px] text-[var(--sl-cyan-soft)] px-1">
         {title}
       </h2>
       {children}
@@ -43,18 +43,17 @@ function ActionRow({
   return (
     <button
       onClick={onClick}
-      className="w-full flex items-center justify-between gap-3 px-4 py-4 min-h-[56px]
-        bg-slate-800 border border-slate-700/60 rounded-2xl
-        text-sm font-semibold text-slate-100 active:bg-slate-700 transition-colors"
+      className="sl-panel w-full flex items-center justify-between gap-3 px-4 py-4 min-h-[56px]
+        rounded-2xl text-sm font-semibold text-slate-100 active:brightness-110 transition"
     >
       <span className="flex items-center gap-3">
         {icon}
         <span>
           {label}
-          {sublabel && <span className="block text-xs text-slate-500 font-normal">{sublabel}</span>}
+          {sublabel && <span className="block text-xs text-[var(--sl-text-dim)] font-normal">{sublabel}</span>}
         </span>
       </span>
-      <ChevronRight size={16} className="opacity-40 shrink-0" />
+      <ChevronRight size={16} className="text-[var(--sl-cyan)] opacity-60 shrink-0" />
     </button>
   );
 }
@@ -62,9 +61,8 @@ function ActionRow({
 // ── Riga info ─────────────────────────────────────────────────────────────────
 function InfoRow({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex items-center justify-between px-4 py-3.5
-      bg-slate-800 border border-slate-700/60 rounded-2xl">
-      <span className="text-sm text-slate-400">{label}</span>
+    <div className="sl-panel flex items-center justify-between px-4 py-3.5 rounded-2xl">
+      <span className="text-sm text-[var(--sl-text-dim)]">{label}</span>
       <span className="text-sm font-semibold text-slate-200">{value}</span>
     </div>
   );
@@ -167,16 +165,16 @@ export function Settings() {
             <div key={p.id} className={[
               'flex items-center gap-3 px-4 py-3.5 rounded-2xl border',
               p.id === activeProfile?.id
-                ? 'bg-indigo-950/40 border-indigo-700/50'
-                : 'bg-slate-800 border-slate-700/60',
+                ? 'bg-[rgba(56,225,255,0.1)] border-[var(--sl-line)] shadow-[0_0_14px_rgba(56,225,255,0.1)]'
+                : 'sl-panel',
             ].join(' ')}>
-              <User size={18} className={p.id === activeProfile?.id ? 'text-indigo-400' : 'text-slate-500'} />
+              <User size={18} className={p.id === activeProfile?.id ? 'text-[var(--sl-cyan)]' : 'text-[var(--sl-text-dim)]'} />
               <span className="flex-1 text-sm font-semibold text-slate-100">{p.name}</span>
               {p.id === activeProfile?.id
-                ? <span className="text-xs text-indigo-400 font-medium">attivo</span>
+                ? <span className="sl-label text-[9px] text-[var(--sl-cyan-soft)]">attivo</span>
                 : <button
                     onClick={() => switchProfile(p.id)}
-                    className="text-xs text-slate-400 underline min-h-[44px] px-2"
+                    className="text-xs text-[var(--sl-cyan)] underline min-h-[44px] px-2"
                   >
                     Entra
                   </button>
@@ -200,30 +198,29 @@ export function Settings() {
                 }}
                 placeholder="Nome profilo…"
                 maxLength={30}
-                className="flex-1 bg-slate-800 border border-slate-700 rounded-xl px-3 py-2.5
-                  text-slate-100 text-sm focus:outline-none focus:border-indigo-500"
+                className="flex-1 bg-[rgba(6,10,20,0.85)] border border-[var(--sl-line)] rounded-xl px-3 py-2.5
+                  text-slate-100 text-sm focus:outline-none focus:border-[var(--sl-cyan)]"
               />
               <button
                 onClick={() => { if (newProfileName.trim()) createAndActivate(newProfileName); }}
-                className="w-11 h-11 rounded-xl bg-indigo-600 flex items-center justify-center"
+                className="w-11 h-11 rounded-xl bg-[var(--sl-cyan)] flex items-center justify-center shadow-[0_0_12px_var(--sl-glow)]"
               >
-                <Check size={18} className="text-white" />
+                <Check size={18} className="text-[#06121e]" strokeWidth={3} />
               </button>
               <button
                 onClick={() => setShowNewProfile(false)}
-                className="w-11 h-11 rounded-xl bg-slate-700 flex items-center justify-center"
+                className="w-11 h-11 rounded-xl bg-[rgba(56,225,255,0.08)] border border-[var(--sl-line)] flex items-center justify-center"
               >
-                <X size={18} className="text-slate-300" />
+                <X size={18} className="text-[var(--sl-text-dim)]" />
               </button>
             </div>
           ) : (
             <button
               onClick={() => setShowNewProfile(true)}
-              className="w-full flex items-center gap-3 px-4 py-3.5 min-h-[56px]
-                bg-slate-800 border border-slate-700/60 rounded-2xl
-                text-sm font-semibold text-slate-300 active:bg-slate-700 transition-colors"
+              className="sl-panel w-full flex items-center gap-3 px-4 py-3.5 min-h-[56px]
+                rounded-2xl text-sm font-semibold text-slate-300 active:brightness-110 transition"
             >
-              <Plus size={18} className="text-indigo-400 shrink-0" />
+              <Plus size={18} className="text-[var(--sl-cyan)] shrink-0" />
               Aggiungi profilo
             </button>
           )}
@@ -233,7 +230,7 @@ export function Settings() {
             <button
               onClick={() => setDialog('del-profile')}
               className="w-full flex items-center gap-3 px-4 py-3.5 min-h-[56px]
-                bg-slate-800 border border-rose-800/40 rounded-2xl
+                bg-[rgba(40,10,16,0.5)] border border-rose-800/50 rounded-2xl
                 text-sm font-semibold text-rose-400 active:bg-rose-950/30 transition-colors"
             >
               <Trash2 size={18} className="shrink-0" />
@@ -282,7 +279,7 @@ export function Settings() {
           )}
 
           {!program.isCustom && (
-            <div className="px-4 py-3 bg-slate-800/60 border border-slate-700/40 rounded-2xl">
+            <div className="px-4 py-3 sl-panel rounded-2xl">
               <p className="text-xs text-slate-400">
                 Stai usando la scheda di default. Carica il tuo file Excel per usare esercizi personalizzati.
               </p>
@@ -347,7 +344,7 @@ export function Settings() {
           <button
             onClick={() => setDialog('reset-meso')}
             className="w-full flex items-center justify-between gap-3 px-4 py-4 min-h-[56px]
-              bg-slate-800 border border-amber-800/40 rounded-2xl
+              bg-[rgba(40,30,8,0.5)] border border-amber-800/50 rounded-2xl
               text-sm font-semibold text-amber-400 active:bg-amber-950/30 transition-colors"
           >
             <span className="flex items-center gap-3">
@@ -368,7 +365,7 @@ export function Settings() {
           <button
             onClick={() => setDialog('reset-all')}
             className="w-full flex items-center justify-between gap-3 px-4 py-4 min-h-[56px]
-              bg-slate-800 border border-rose-800/40 rounded-2xl
+              bg-[rgba(40,10,16,0.5)] border border-rose-800/50 rounded-2xl
               text-sm font-semibold text-rose-400 active:bg-rose-950/30 transition-colors"
           >
             <span className="flex items-center gap-3">
@@ -389,7 +386,7 @@ export function Settings() {
           <InfoRow label="Storage"         value="localStorage (offline)" />
           <InfoRow label="Dati sul server" value="Nessuno" />
 
-          <div className="bg-slate-800/60 border border-slate-700/40 rounded-2xl px-4 py-4 space-y-1.5">
+          <div className="sl-panel rounded-2xl px-4 py-4 space-y-1.5">
             <p className="flex items-center gap-2 text-xs font-semibold text-slate-300">
               <Info size={13} className="text-indigo-400 shrink-0" />
               Basi scientifiche
@@ -401,7 +398,7 @@ export function Settings() {
             </p>
           </div>
 
-          <div className="bg-slate-800/60 border border-slate-700/40 rounded-2xl px-4 py-3
+          <div className="sl-panel rounded-2xl px-4 py-3
             flex items-start gap-2">
             <Calendar size={13} className="text-indigo-400 shrink-0 mt-0.5" />
             <p className="text-xs text-slate-500 leading-relaxed">

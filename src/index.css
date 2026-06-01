@@ -11,8 +11,8 @@
   /* Palette System */
   --sl-bg:        #05070e;
   --sl-bg-2:      #080d1a;
-  --sl-panel:     rgba(10, 19, 38, 0.72);
-  --sl-panel-2:   rgba(14, 26, 48, 0.55);
+  --sl-panel:     rgba(10, 19, 38, 0.86);
+  --sl-panel-2:   rgba(14, 26, 48, 0.74);
 
   --sl-cyan:      #38e1ff;
   --sl-cyan-soft: #8af2ff;
@@ -44,7 +44,6 @@ body {
   -webkit-text-size-adjust: 100%;
 }
 
-/* Numeri tabellari più leggibili con Rajdhani */
 .tabular-nums { font-variant-numeric: tabular-nums; }
 
 /* ── Sfondo di default "System" (quando non c'è immagine utente) ───────── */
@@ -57,7 +56,6 @@ body {
     radial-gradient(70% 50% at 12% 95%, rgba(56, 225, 255, 0.12), transparent 60%),
     linear-gradient(180deg, var(--sl-bg) 0%, var(--sl-bg-2) 60%, var(--sl-bg) 100%);
 }
-/* Griglia prospettica tenue */
 .sl-bg-default::before {
   content: "";
   position: absolute;
@@ -70,6 +68,23 @@ body {
           mask-image: radial-gradient(120% 90% at 50% 0%, #000 35%, transparent 80%);
   opacity: 0.5;
 }
+
+/* Scena decorativa originale (portale + particelle) sopra lo sfondo di default */
+.sl-bg-scene {
+  position: absolute;
+  inset: 0;
+  background: url("/bg-scene.svg") no-repeat center -20px;
+  background-size: min(150%, 1100px) auto;
+  opacity: 0.55;
+  -webkit-mask-image: linear-gradient(180deg, #000 0%, #000 52%, transparent 92%);
+          mask-image: linear-gradient(180deg, #000 0%, #000 52%, transparent 92%);
+  pointer-events: none;
+}
+/* Accenti cromatici per schermata (hue-rotate sulla scena cyan/viola) */
+.sl-acc-violet  { filter: hue-rotate(32deg)  saturate(1.15); }
+.sl-acc-magenta { filter: hue-rotate(72deg)  saturate(1.2);  }
+.sl-acc-emerald { filter: hue-rotate(-58deg) saturate(1.05); }
+.sl-acc-amber   { filter: hue-rotate(-130deg) saturate(1.25); }
 
 /* Scrim scuro sopra le immagini-sfondo caricate dall'utente (leggibilità) */
 .sl-bg-scrim {
@@ -128,14 +143,14 @@ body {
 .sl-glow-violet { text-shadow: 0 0 12px var(--sl-glow-violet); }
 
 /* ── Pannelli / finestre "System" ─────────────────────────────────────── */
+/* Niente backdrop-filter: lo sfondo translucido + bordo + glow danno l'effetto
+   vetro restando fluidi durante lo scroll (importante su mobile). */
 .sl-panel {
   position: relative;
   background:
     linear-gradient(180deg, var(--sl-panel) 0%, var(--sl-panel-2) 100%);
   border: 1px solid var(--sl-line);
   border-radius: 14px;
-  backdrop-filter: blur(7px);
-  -webkit-backdrop-filter: blur(7px);
   box-shadow:
     0 0 0 1px rgba(56,225,255,0.05),
     0 0 22px rgba(47,123,255,0.10),
@@ -251,7 +266,7 @@ body {
   .sl-sweep::after, .sl-pulse { animation: none; }
 }
 
-/* ── Transizione route (mantenuta, leggermente più "tech") ────────────── */
+/* ── Transizione route ────────────────────────────────────────────────── */
 @keyframes routeEnter {
   from { opacity: 0; transform: translateY(8px); filter: blur(2px); }
   to   { opacity: 1; transform: translateY(0);   filter: blur(0); }

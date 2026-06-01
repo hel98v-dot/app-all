@@ -56,10 +56,10 @@ function ExerciseRow({ log, weekNumber, findEx }: { log: ExerciseLog; weekNumber
   const vol   = exerciseVolume(log);
 
   return (
-    <div className="flex items-start justify-between py-2 border-b border-slate-700/50 last:border-0">
+    <div className="flex items-start justify-between py-2 border-b border-[var(--sl-line-soft)] last:border-0">
       <div className="flex-1 min-w-0 pr-3">
         <p className="text-sm text-slate-200 font-medium leading-snug">{name}</p>
-        <p className="text-xs text-slate-500 mt-0.5">
+        <p className="text-xs text-[var(--sl-text-dim)] mt-0.5">
           {log.sets.length} set
           {log.sets.length > 0 && (
             <>
@@ -74,7 +74,7 @@ function ExerciseRow({ log, weekNumber, findEx }: { log: ExerciseLog; weekNumber
           )}
         </p>
         {log.notes && (
-          <p className="text-xs text-indigo-300/70 italic mt-0.5">"{log.notes}"</p>
+          <p className="text-xs text-[var(--sl-cyan-soft)]/80 italic mt-0.5">"{log.notes}"</p>
         )}
       </div>
       {vol > 0 && (
@@ -98,19 +98,19 @@ function SessionRow({ session, findEx }: { session: SessionLog; findEx: FindEx }
   const focus = found?.session.focus ?? session.sessionId.toUpperCase();
 
   return (
-    <div className="rounded-xl overflow-hidden border border-slate-700/60">
+    <div className="sl-panel rounded-xl overflow-hidden">
       {/* Intestazione sessione */}
       <button
         onClick={() => setOpen(o => !o)}
-        className="w-full flex items-center gap-3 px-4 py-3.5 bg-slate-800 active:bg-slate-700 transition-colors text-left"
+        className="w-full flex items-center gap-3 px-4 py-3.5 bg-transparent active:bg-[rgba(56,225,255,0.06)] transition-colors text-left"
       >
-        <Calendar size={16} className="text-indigo-400 shrink-0" strokeWidth={2} />
+        <Calendar size={16} className="text-[var(--sl-cyan)] shrink-0" strokeWidth={2} />
 
         <div className="flex-1 min-w-0">
           <p className="text-sm font-semibold text-slate-100 leading-snug">
             {formatDisplay(session.date)}
           </p>
-          <p className="text-xs text-slate-400 truncate mt-0.5">{focus}</p>
+          <p className="text-xs text-[var(--sl-text-dim)] truncate mt-0.5">{focus}</p>
         </div>
 
         <div className="flex items-center gap-2 shrink-0">
@@ -120,17 +120,17 @@ function SessionRow({ session, findEx }: { session: SessionLog; findEx: FindEx }
             </span>
           )}
           {open
-            ? <ChevronDown size={16} className="text-slate-500" />
-            : <ChevronRight size={16} className="text-slate-500" />
+            ? <ChevronDown size={16} className="text-[var(--sl-text-dim)]" />
+            : <ChevronRight size={16} className="text-[var(--sl-text-dim)]" />
           }
         </div>
       </button>
 
       {/* Lista esercizi espansa */}
       {open && (
-        <div className="bg-slate-900 px-4 py-2">
+        <div className="bg-[rgba(6,10,20,0.5)] border-t border-[var(--sl-line-soft)] px-4 py-2">
           {session.exercises.length === 0 ? (
-            <p className="text-xs text-slate-600 py-2 italic">Nessun esercizio loggato.</p>
+            <p className="text-xs text-[var(--sl-text-dim)] py-2 italic">Nessun esercizio loggato.</p>
           ) : (
             session.exercises.map(ex => (
               <ExerciseRow key={ex.exerciseId} log={ex} weekNumber={session.weekNumber} findEx={findEx} />
@@ -156,8 +156,8 @@ function WeekSection({ group, findEx }: { group: WeekGroup; findEx: FindEx }) {
       >
         <div className={[
           'flex items-center justify-center w-7 h-7 rounded-lg shrink-0',
-          'bg-indigo-900/60 border border-indigo-700/50',
-          'text-indigo-300 text-xs font-bold',
+          'bg-[rgba(56,225,255,0.1)] border border-[var(--sl-line)]',
+          'text-[var(--sl-cyan-soft)] text-xs font-bold',
         ].join(' ')}>
           {group.weekNumber}
         </div>
@@ -166,12 +166,12 @@ function WeekSection({ group, findEx }: { group: WeekGroup; findEx: FindEx }) {
           <p className="text-base font-bold text-slate-100">
             Settimana {group.weekNumber}
           </p>
-          <p className="text-xs text-slate-500">
+          <p className="text-xs text-[var(--sl-text-dim)]">
             {group.sessions.length} session{group.sessions.length !== 1 ? 'i' : 'e'}
             {group.totalVolume > 0 && (
               <>
                 {' · '}
-                <span className="text-slate-400 font-medium tabular-nums">
+                <span className="text-[var(--sl-text-dim)] font-medium tabular-nums">
                   {group.totalVolume.toLocaleString('it-IT')} kg
                 </span>
                 {' totali'}
@@ -183,7 +183,7 @@ function WeekSection({ group, findEx }: { group: WeekGroup; findEx: FindEx }) {
         <ChevronDown
           size={18}
           className={[
-            'text-slate-500 transition-transform duration-200 shrink-0',
+            'text-[var(--sl-text-dim)] transition-transform duration-200 shrink-0',
             open ? 'rotate-0' : '-rotate-90',
           ].join(' ')}
         />
@@ -199,7 +199,7 @@ function WeekSection({ group, findEx }: { group: WeekGroup; findEx: FindEx }) {
       )}
 
       {/* Divisore */}
-      <div className="border-b border-slate-800 mt-1" />
+      <div className="sl-divider mt-1" />
     </section>
   );
 }
@@ -275,7 +275,7 @@ export function History() {
       <div className="flex flex-col items-center justify-center min-h-[70vh] gap-4 px-6 text-center">
         <Dumbbell size={52} className="text-slate-700" strokeWidth={1.25} />
         <h1 className="sl-heading text-2xl">Registro</h1>
-        <p className="text-slate-500 text-sm max-w-xs">
+        <p className="text-[var(--sl-text-dim)] text-sm max-w-xs">
           Nessuna sessione ancora. Allena­ti e i tuoi log appariranno qui.
         </p>
       </div>
@@ -291,10 +291,10 @@ export function History() {
       {/* Header pagina */}
       <div className="mb-4">
         <h1 className="sl-heading text-2xl">Registro</h1>
-        <p className="text-slate-500 text-sm mt-0.5">
+        <p className="text-[var(--sl-text-dim)] text-sm mt-0.5">
           {totalSessions} session{totalSessions !== 1 ? 'i' : 'e'}
           {grandTotal > 0 && (
-            <> · <span className="text-slate-400 font-medium tabular-nums">
+            <> · <span className="text-[var(--sl-text-dim)] font-medium tabular-nums">
               {grandTotal.toLocaleString('it-IT')} kg
             </span> volume totale</>
           )}
