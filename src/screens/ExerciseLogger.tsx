@@ -17,7 +17,7 @@ import { useRestTimer }     from '../hooks/useRestTimer';
 import { useWakeLock }      from '../hooks/useWakeLock';
 import { ToastStack }       from '../components/Toast';
 import { today, formatDisplay } from '../lib/dates';
-import { parseRestSeconds, formatClock } from '../lib/restTime';
+import { timerRestSeconds, formatClock } from '../lib/restTime';
 import {
   exerciseHistory, recordsFromHistory, lastPerformance, bestOfSets,
 } from '../lib/records';
@@ -188,8 +188,9 @@ export function ExerciseLogger() {
   const prevRecords = recordsFromHistory(history);
   const lastPerf    = lastPerformance(allSessions, exId, sessionKey);
 
-  // Pre-compilato dall'ultima volta solo se non c'è già un log di oggi
-  const prefilledFromLast = !!found && !existingLog?.sets.length && !!lastPerf?.sets.length;
+  // Pre-compila il CARICO dall'ultima volta (le reps restano da inserire),
+  // solo se non c'è già un log di oggi e l'ultima volta aveva un carico > 0.
+  const prefilledFromLast = !!found && !existingLog?.sets.length && !!lastPerf?.sets.some(s => s.kg > 0);
 
   const [dirty, setDirty] = useState(false);
   const [notes, setNotes] = useState<string>(existingLog?.notes ?? '');
@@ -202,12 +203,13 @@ export function ExerciseLogger() {
       while (base.length < n) base.push({ reps: 0, kg: 0 });
       return base;
     }
-    // 2) Pre-compila dall'ultima volta (ripete l'ultima serie per i set extra)
+    // 2) Pre-compila SOLO il carico dall'ultima volta (reps da inserire a mano).
+    //    Per i set extra ripete il carico dell'ultima serie.
     if (lastPerf?.sets.length) {
       const src = lastPerf.sets;
       return Array.from({ length: n }, (_, i) => {
         const s = src[i] ?? src[src.length - 1];
-        return { reps: s.reps, kg: s.kg };
+        return { reps: 0, kg: s.kg };
       });
     }
     // 3) Vuoto
@@ -260,7 +262,7 @@ export function ExerciseLogger() {
   const metricLabel   = isMeters ? 'metri' : 'reps';
   const kgStep        = 2.5;
   const kgMicro       = 0.5;
-  const restSeconds   = parseRestSeconds(exercise.rest);
+  const restSeconds   = timerRestSeconds(exercise.rest);
 
   function updateSet(idx: number, field: keyof SetLog, value: number) {
     markDirty();
@@ -384,9 +386,9 @@ export function ExerciseLogger() {
             bg-[rgba(139,92,255,0.10)] border border-[rgba(139,92,255,0.3)]">
             <Info size={14} className="text-[var(--sl-violet-soft)] shrink-0 mt-0.5" />
             <p className="text-slate-300 text-sm">
-              Valori pre-compilati dall'ultima volta
+              Carico pre-compilato dall'ultima volta
               <span className="text-slate-500"> ({formatDisplay(lastPerf.date)})</span>.
-              Modifica e salva.
+              Inserisci le ripetizioni.
             </p>
           </div>
         )}
@@ -435,7 +437,7 @@ export function ExerciseLogger() {
         <div className="space-y-3">
           {sets.map((s, idx) => {
             const vol     = setVolume(s);
-            const isDone  = s.reps > 0 && (!prefilledFromLast || dirty);
+            const isDone  = s.reps > 0;
             const lastSet = lastPerf?.sets[idx];
 
             return (

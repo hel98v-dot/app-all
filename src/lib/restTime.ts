@@ -22,6 +22,18 @@ export function parseRestSeconds(rest: string | undefined): number {
   return isMinutes ? n * 60 : n;
 }
 
+/** Secondi di "preparazione" scontati dal recupero: il timer parte già ridotto
+ *  così, quando arriva a 0, hai il tempo di posizionarti e ripartire subito. */
+const READY_LEAD_SECONDS = 10;
+
+/**
+ * Recupero effettivo usato dal timer: prescritto − tempo di preparazione.
+ * Mantiene un minimo di 10s per evitare countdown troppo brevi.
+ */
+export function timerRestSeconds(rest: string | undefined): number {
+  return Math.max(10, parseRestSeconds(rest) - READY_LEAD_SECONDS);
+}
+
 /** Formatta i secondi in "M:SS" (es. 95 → "1:35"). */
 export function formatClock(totalSeconds: number): string {
   const s = Math.max(0, Math.round(totalSeconds));
