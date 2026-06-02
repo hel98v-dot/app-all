@@ -12,6 +12,7 @@ import { ProfileSelect }      from './screens/ProfileSelect';
 import { useProfileStore }    from './hooks/useProfileStore';
 import { BackgroundsProvider } from './hooks/useBackgrounds';
 import { RestTimerProvider }   from './hooks/useRestTimer';
+import { ErrorBoundary }       from './components/ErrorBoundary';
 
 export default function App() {
   const { profiles, activeProfile, createAndActivate, switchProfile } = useProfileStore();
@@ -32,6 +33,7 @@ export default function App() {
   return (
     <BackgroundsProvider>
       <RestTimerProvider>
+      <ErrorBoundary>
       <BrowserRouter>
         <Routes>
           <Route element={<Layout />}>
@@ -52,6 +54,7 @@ export default function App() {
           </Route>
         </Routes>
       </BrowserRouter>
+      </ErrorBoundary>
       </RestTimerProvider>
     </BackgroundsProvider>
   );
