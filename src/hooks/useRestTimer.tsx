@@ -28,7 +28,7 @@ const INITIAL: RestTimerState = {
   running: false, finished: false, remaining: 0, total: 0, label: '',
 };
 
-/** Beep breve generato via Web Audio (nessun asset). */
+/** Avviso sonoro "forte ma breve": doppio bip square (~0.35s). */
 function beep(): void {
   try {
     const Ctor =
@@ -36,21 +36,48 @@ function beep(): void {
       (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
     if (!Ctor) return;
     const ctx = new Ctor();
-    const osc = ctx.createOscillator();
     const gain = ctx.createGain();
-    osc.connect(gain);
     gain.connect(ctx.destination);
-    osc.type = 'sine';
-    osc.frequency.value = 880;
     const t = ctx.currentTime;
     gain.gain.setValueAtTime(0.0001, t);
-    gain.gain.exponentialRampToValueAtTime(0.3, t + 0.02);
-    gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.55);
+    gain.gain.exponentialRampToValueAtTime(0.5, t + 0.02);   // forte
+    gain.gain.exponentialRampToValueAtTime(0.18, t + 0.15);
+    gain.gain.exponentialRampToValueAtTime(0.5, t + 0.18);   // secondo colpo
+    gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.34); // breve
+    const osc = ctx.createOscillator();
+    osc.connect(gain);
+    osc.type = 'square';                       // timbro incisivo
+    osc.frequency.setValueAtTime(988, t);      // Si
+    osc.frequency.setValueAtTime(1319, t + 0.17); // Mi → "di-dah"
     osc.start(t);
-    osc.stop(t + 0.55);
+    osc.stop(t + 0.35);
     osc.onended = () => void ctx.close();
   } catch {
     /* audio non disponibile: ignora */
+  }
+}
+
+/** Notifica di sistema a fine recupero (best-effort; via SW per Android/PWA). */
+function notifyRestDone(label: string): void {
+  try {
+    if (typeof Notification === 'undefined' || Notification.permission !== 'granted') return;
+    const title = 'Recupero finito 💪';
+    const options = {
+      body: label ? `${label} — pronto per la prossima serie` : 'Pronto per la prossima serie',
+      tag: 'rest-timer',
+      renotify: true,
+      vibrate: [200, 80, 200],
+      silent: false,
+    };
+    if ('serviceWorker' in navigator) {
+      void navigator.serviceWorker.ready
+        .then(reg => reg.showNotification(title, options))
+        .catch(() => { try { new Notification(title, options); } catch { /* ignore */ } });
+    } else {
+      new Notification(title, options);
+    }
+  } catch {
+    /* notifiche non disponibili: ignora */
   }
 }
 
@@ -58,6 +85,7 @@ export function RestTimerProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<RestTimerState>(INITIAL);
   const endsAtRef = useRef<number>(0);
   const intervalRef = useRef<number | null>(null);
+  const labelRef = useRef<string>('');
 
   const clearTick = useCallback((): void => {
     if (intervalRef.current !== null) {
@@ -73,12 +101,20 @@ export function RestTimerProvider({ children }: { children: ReactNode }) {
       setState(s => ({ ...s, running: false, finished: true, remaining: 0 }));
       if ('vibrate' in navigator) navigator.vibrate([120, 60, 120]);
       beep();
+      notifyRestDone(labelRef.current);
     } else {
       setState(s => ({ ...s, remaining: Math.ceil(remainingMs / 1000) }));
     }
   }, [clearTick]);
 
   const start = useCallback((seconds: number, label = ''): void => {
+    // Chiedi il permesso notifiche al primo avvio (siamo in un gesto utente).
+    try {
+      if (typeof Notification !== 'undefined' && Notification.permission === 'default') {
+        void Notification.requestPermission();
+      }
+    } catch { /* ignore */ }
+    labelRef.current = label;
     clearTick();
     endsAtRef.current = Date.now() + seconds * 1000;
     setState({ running: true, finished: false, remaining: seconds, total: seconds, label });
