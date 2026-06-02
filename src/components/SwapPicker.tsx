@@ -3,6 +3,7 @@
 // Elenca gli altri esercizi del programma, con lo stesso gruppo muscolare in cima.
 
 import { useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { X, RotateCcw, Repeat2 } from 'lucide-react';
 import type { Exercise, Muscle } from '../data/program';
 
@@ -36,7 +37,9 @@ export function SwapPicker({
     return muscles.map(m => ({ muscle: m, items: byMuscle.get(m) ?? [] }));
   }, [candidates, current.id, priorityMuscle]);
 
-  return (
+  // Portale su document.body: fuori dal contenitore di route (che ha un
+  // transform da animazione e romperebbe `position: fixed`).
+  return createPortal(
     <div className="fixed inset-0 z-50 flex flex-col justify-end">
       {/* Backdrop */}
       <button
@@ -118,6 +121,7 @@ export function SwapPicker({
           ))}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

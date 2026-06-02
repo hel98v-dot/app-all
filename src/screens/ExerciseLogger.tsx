@@ -55,16 +55,18 @@ interface StepBtnProps {
 }
 
 function StepBtn({ label, onPress, variant = 'primary' }: StepBtnProps) {
+  // onClick (non onPointerDown): un gesto di scroll non produce un click, quindi
+  // scorrendo non si incrementano più reps/kg per errore.
   return (
     <button
       type="button"
-      onPointerDown={e => { e.preventDefault(); onPress(); }}
+      onClick={onPress}
       className={[
-        'flex items-center justify-center w-12 h-12 rounded-xl select-none',
+        'flex items-center justify-center rounded-xl select-none shrink-0',
         'active:scale-95 transition-transform font-bold',
         variant === 'primary'
-          ? 'text-xl text-[var(--sl-cyan-soft)] border border-[var(--sl-line)] bg-[rgba(56,225,255,0.08)] active:bg-[rgba(56,225,255,0.18)]'
-          : 'text-sm text-[var(--sl-text-dim)] border border-[var(--sl-line-soft)] bg-[rgba(56,225,255,0.04)] active:bg-[rgba(56,225,255,0.12)]',
+          ? 'w-12 h-12 text-xl text-[var(--sl-cyan-soft)] border border-[var(--sl-line)] bg-[rgba(56,225,255,0.08)] active:bg-[rgba(56,225,255,0.18)]'
+          : 'w-10 h-10 text-xs text-[var(--sl-text-dim)] border border-[var(--sl-line-soft)] bg-[rgba(56,225,255,0.04)] active:bg-[rgba(56,225,255,0.12)]',
       ].join(' ')}
     >
       {label}
@@ -105,14 +107,20 @@ function NumField({ value, onChange, step, min = 0, label, microStep }: NumField
     }
   }
 
+  // Layout orizzontale con i bottoni −/+ ancorati a SINISTRA (lontani dal
+  // pollice destro durante lo scroll). Il valore è subito dopo, il lato destro
+  // resta libero. Il micro-step (±) sta su una riga secondaria per non sforare.
   return (
-    <div className="flex flex-col items-center gap-1">
-      <span className="text-[10px] uppercase tracking-widest text-slate-500">{label}</span>
-
+    <div className="space-y-1.5">
       <div className="flex items-center gap-2">
+        <span className="w-11 shrink-0 text-[11px] font-semibold uppercase tracking-wide text-slate-500">{label}</span>
         <StepBtn
           label="−"
           onPress={() => syncInput(clamp(roundToStep(value - step, step), min))}
+        />
+        <StepBtn
+          label="+"
+          onPress={() => syncInput(roundToStep(value + step, step))}
         />
         <input
           ref={inputRef}
@@ -122,8 +130,8 @@ function NumField({ value, onChange, step, min = 0, label, microStep }: NumField
           onBlur={handleBlur}
           onFocus={e => e.currentTarget.select()}
           className={[
-            'w-[72px] text-center text-2xl font-bold tabular-nums',
-            'bg-[rgba(6,10,20,0.85)] border border-[var(--sl-line)] rounded-xl py-2',
+            'w-[68px] text-center text-2xl font-bold tabular-nums',
+            'bg-[rgba(6,10,20,0.85)] border border-[var(--sl-line)] rounded-xl py-1.5',
             // Contrasto AAA: text-white su bg scuro
             'text-white focus:outline-none focus:border-[var(--sl-cyan)] focus:shadow-[0_0_14px_var(--sl-glow)]',
             '[appearance:textfield]',
@@ -131,25 +139,21 @@ function NumField({ value, onChange, step, min = 0, label, microStep }: NumField
             '[&::-webkit-inner-spin-button]:appearance-none',
           ].join(' ')}
         />
-        <StepBtn
-          label="+"
-          onPress={() => syncInput(roundToStep(value + step, step))}
-        />
       </div>
 
       {microStep !== undefined && (
-        <div className="flex items-center gap-1.5 mt-0.5">
+        <div className="flex items-center gap-1.5 pl-[52px]">
           <StepBtn
             label={`−${microStep}`}
             onPress={() => syncInput(clamp(roundToStep(value - microStep, microStep), min))}
             variant="subtle"
           />
-          <span className="text-[10px] text-slate-600 w-8 text-center">micro</span>
           <StepBtn
             label={`+${microStep}`}
             onPress={() => syncInput(roundToStep(value + microStep, microStep))}
             variant="subtle"
           />
+          <span className="text-[10px] text-slate-600 ml-1">fine</span>
         </div>
       )}
     </div>
@@ -475,7 +479,7 @@ export function ExerciseLogger() {
                   </div>
                 </div>
 
-                <div className="flex items-start justify-center gap-6 flex-wrap">
+                <div className="space-y-2.5">
                   <NumField
                     label={metricLabel}
                     value={s.reps}
@@ -483,9 +487,6 @@ export function ExerciseLogger() {
                     min={0}
                     onChange={v => updateSet(idx, 'reps', v)}
                   />
-                  <div className="flex items-center self-center pt-5">
-                    <span className="text-[var(--sl-text-dim)] text-xl font-light">×</span>
-                  </div>
                   <NumField
                     label="kg"
                     value={s.kg}

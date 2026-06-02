@@ -1,5 +1,5 @@
 // src/screens/Today.tsx
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate }       from 'react-router-dom';
 import {
   MapPin, Moon, Footprints,
@@ -21,16 +21,40 @@ interface SwapTarget {
   isSwapped:      boolean;
 }
 
+// Selezione (settimana + giorno) persistita per la sessione del browser:
+// tornando da un esercizio si resta sulla sessione che si stava guardando,
+// mentre a un nuovo avvio dell'app si riparte dal giorno di calendario.
+const SELECTION_KEY = 'today-selection-v1';
+
+function readSelection(): { week: number; day: DayKey } | null {
+  try {
+    const raw = sessionStorage.getItem(SELECTION_KEY);
+    if (raw) return JSON.parse(raw) as { week: number; day: DayKey };
+  } catch { /* ignore */ }
+  return null;
+}
+
 export function Today() {
   const { startDate, getExerciseLog, clearExerciseLog } = useLogStore();
   const program = useProgramData();
   const { weekNumber: defaultWeek, dayKey: defaultDay, dateISO } = useCurrentSession(startDate);
 
-  const [selectedWeek, setSelectedWeek] = useState<number>(defaultWeek);
-  const [selectedDay,  setSelectedDay]  = useState<DayKey>(() => {
-    const hasSession = program.baseSessions.some(s => s.day === defaultDay);
-    return hasSession ? defaultDay : (program.baseSessions[0]?.day ?? 'lunedi');
+  const [selectedWeek, setSelectedWeek] = useState<number>(() => {
+    const saved = readSelection()?.week;
+    return saved && saved >= 1 && saved <= TOTAL_WEEKS ? saved : defaultWeek;
   });
+  const [selectedDay,  setSelectedDay]  = useState<DayKey>(() => {
+    const candidate = readSelection()?.day ?? defaultDay;
+    const hasSession = program.baseSessions.some(s => s.day === candidate);
+    return hasSession ? candidate : (program.baseSessions[0]?.day ?? 'lunedi');
+  });
+
+  // Persisti la selezione per la sessione del browser
+  useEffect(() => {
+    try {
+      sessionStorage.setItem(SELECTION_KEY, JSON.stringify({ week: selectedWeek, day: selectedDay }));
+    } catch { /* ignore */ }
+  }, [selectedWeek, selectedDay]);
 
   const navigate = useNavigate();
   const { getSwap, setSwap, clearSwap } = useSwaps();
