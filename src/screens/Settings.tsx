@@ -3,8 +3,9 @@ import { useRef, useState } from 'react';
 import {
   Download, Upload, RotateCcw, Trash2,
   Calendar, Info, ChevronRight,
-  User, FileSpreadsheet, Plus, Check, X,
+  User, FileSpreadsheet, Plus, Check, X, Timer,
 } from 'lucide-react';
+import { usePref }            from '../lib/prefs';
 import { useLogStore }        from '../hooks/useLogStore';
 import { useCurrentSession }  from '../hooks/useCurrentSession';
 import { useProfileStore }    from '../hooks/useProfileStore';
@@ -58,6 +59,45 @@ function ActionRow({
   );
 }
 
+// ── Riga toggle ─────────────────────────────────────────────────────────────────
+function ToggleRow({
+  icon, label, sublabel, value, onChange,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  sublabel?: string;
+  value: boolean;
+  onChange: (v: boolean) => void;
+}) {
+  return (
+    <button
+      onClick={() => onChange(!value)}
+      role="switch"
+      aria-checked={value}
+      className="sl-panel w-full flex items-center justify-between gap-3 px-4 py-4 min-h-[56px]
+        rounded-2xl text-sm font-semibold text-slate-100 active:brightness-110 transition"
+    >
+      <span className="flex items-center gap-3">
+        {icon}
+        <span className="text-left">
+          {label}
+          {sublabel && <span className="block text-xs text-[var(--sl-text-dim)] font-normal">{sublabel}</span>}
+        </span>
+      </span>
+      <span className={[
+        'relative w-12 h-7 rounded-full shrink-0 transition-colors border',
+        value ? 'bg-[var(--sl-cyan)] border-[var(--sl-cyan-soft)] shadow-[0_0_10px_var(--sl-glow)]'
+              : 'bg-slate-700/70 border-[var(--sl-line-soft)]',
+      ].join(' ')}>
+        <span className={[
+          'absolute top-0.5 w-5 h-5 rounded-full bg-white transition-all',
+          value ? 'left-[22px]' : 'left-0.5',
+        ].join(' ')} />
+      </span>
+    </button>
+  );
+}
+
 // ── Riga info ─────────────────────────────────────────────────────────────────
 function InfoRow({ label, value }: { label: string; value: string }) {
   return (
@@ -83,6 +123,7 @@ export function Settings() {
 
   const { profiles, activeProfile, createAndActivate, switchProfile, deleteProfile } = useProfileStore();
   const program = useProgramData();
+  const [autoRest, setAutoRest] = usePref('autoRest');
 
   const [dialog, setDialog] = useState<'reset-meso' | 'reset-all' | 'del-profile' | null>(null);
   const [newProfileName, setNewProfileName] = useState('');
@@ -237,6 +278,17 @@ export function Settings() {
               Elimina profilo "{activeProfile?.name}"
             </button>
           )}
+        </Section>
+
+        {/* ── Allenamento ────────────────────────────────────────────────────── */}
+        <Section title="Allenamento">
+          <ToggleRow
+            icon={<Timer size={18} className="text-[var(--sl-cyan)] shrink-0" />}
+            label="Recupero automatico"
+            sublabel="Avvia il timer da solo dopo aver inserito le reps"
+            value={autoRest}
+            onChange={setAutoRest}
+          />
         </Section>
 
         {/* ── Aspetto / Sfondi ───────────────────────────────────────────────── */}

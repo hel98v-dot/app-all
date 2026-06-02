@@ -15,6 +15,8 @@ import { useLogStore }      from '../hooks/useLogStore';
 import { useToast }         from '../hooks/useToast';
 import { useRestTimer }     from '../hooks/useRestTimer';
 import { useWakeLock }      from '../hooks/useWakeLock';
+import { useAutoRest }      from '../hooks/useAutoRest';
+import { usePref }          from '../lib/prefs';
 import { ToastStack }       from '../components/Toast';
 import { today, formatDisplay } from '../lib/dates';
 import { timerRestSeconds, formatClock } from '../lib/restTime';
@@ -172,6 +174,9 @@ export function ExerciseLogger() {
   const { getExerciseLog, saveExerciseLog, clearExerciseLog, getAllSessionLogs } = useLogStore();
   const { toasts, show } = useToast();
   const restTimer = useRestTimer();
+  const [autoRest] = usePref('autoRest');
+  const autoRestTimer = useAutoRest();
+  const restedSets = useRef<Set<number>>(new Set());
 
   // Tiene lo schermo acceso durante il logging
   useWakeLock(true);
@@ -271,6 +276,15 @@ export function ExerciseLogger() {
   function updateSet(idx: number, field: keyof SetLog, value: number) {
     markDirty();
     setSets(prev => prev.map((s, i) => i === idx ? { ...s, [field]: value } : s));
+    // Avvio recupero automatico: alla prima volta che una serie ha reps > 0,
+    // dopo una breve pausa (debounce) parte il timer di recupero.
+    if (autoRest && field === 'reps' && value > 0 && !restedSets.current.has(idx)) {
+      autoRestTimer.schedule(() => {
+        restedSets.current.add(idx);
+        restTimer.start(restSeconds, exercise.name);
+        if ('vibrate' in navigator) navigator.vibrate(20);
+      });
+    }
   }
 
   function addSet() {
@@ -285,6 +299,7 @@ export function ExerciseLogger() {
   }
 
   function startRest() {
+    autoRestTimer.cancel();
     restTimer.start(restSeconds, exercise.name);
     if ('vibrate' in navigator) navigator.vibrate(20);
   }

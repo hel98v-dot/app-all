@@ -11,6 +11,8 @@ import { useProgramData } from '../hooks/useProgramData';
 import { useLogStore }    from '../hooks/useLogStore';
 import { useRestTimer }   from '../hooks/useRestTimer';
 import { useWakeLock }    from '../hooks/useWakeLock';
+import { useAutoRest }    from '../hooks/useAutoRest';
+import { usePref }        from '../lib/prefs';
 import { useToast }       from '../hooks/useToast';
 import { ToastStack }     from '../components/Toast';
 import { today }          from '../lib/dates';
@@ -72,6 +74,9 @@ export function SupersetLogger() {
   const { getExerciseLog, getSessionLog, saveSessionLog, getAllSessionLogs } = useLogStore();
   const restTimer = useRestTimer();
   const { toasts, show } = useToast();
+  const [autoRest] = usePref('autoRest');
+  const autoRestTimer = useAutoRest();
+  const restedSets = useRef<Set<string>>(new Set());
   useWakeLock(true);
 
   const weekNumber = parseInt(wkStr ?? '1', 10);
@@ -148,9 +153,18 @@ export function SupersetLogger() {
       ...prev,
       [exId]: (prev[exId] ?? []).map((s, i) => i === idx ? { ...s, [field]: value } : s),
     }));
+    const key = `${exId}:${idx}`;
+    if (autoRest && field === 'reps' && value > 0 && !restedSets.current.has(key)) {
+      autoRestTimer.schedule(() => {
+        restedSets.current.add(key);
+        restTimer.start(restSeconds, 'Superset');
+        if ('vibrate' in navigator) navigator.vibrate(20);
+      });
+    }
   }
 
   function startRest() {
+    autoRestTimer.cancel();
     restTimer.start(restSeconds, 'Superset');
     if ('vibrate' in navigator) navigator.vibrate(20);
   }
