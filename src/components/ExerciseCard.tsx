@@ -4,7 +4,7 @@
 // Bottone reset (cestino) con doppio tap di conferma per evitare cancellazioni accidentali.
 
 import { useState }                        from 'react';
-import { CheckCircle2, ChevronRight, Circle, Trash2, AlertCircle, Repeat2 } from 'lucide-react';
+import { CheckCircle2, ChevronRight, Circle, Trash2, AlertCircle, Repeat2, Link2 } from 'lucide-react';
 import type { Exercise, Muscle }           from '../data/program';
 import type { ExerciseLog }                from '../types';
 
@@ -33,10 +33,12 @@ interface ExerciseCardProps {
   onSwap?:  () => void;
   /** true se questo slot mostra un esercizio sostituto. */
   isSwapped?: boolean;
+  /** Apre il selettore di abbinamento superset. */
+  onSuperset?: () => void;
 }
 
 // ── Componente ────────────────────────────────────────────────────────────────
-export function ExerciseCard({ exercise, log, onClick, onReset, onSwap, isSwapped }: ExerciseCardProps) {
+export function ExerciseCard({ exercise, log, onClick, onReset, onSwap, isSwapped, onSuperset }: ExerciseCardProps) {
   const [confirmReset, setConfirmReset] = useState(false);
 
   const setsLogged = log?.sets.length ?? 0;
@@ -78,8 +80,8 @@ export function ExerciseCard({ exercise, log, onClick, onReset, onSwap, isSwappe
             : isDone
               ? 'border bg-emerald-950/45 border-emerald-600/50 shadow-[0_0_16px_rgba(16,185,129,0.12)]'
               : 'sl-panel',
-          // Spazio a destra per i bottoni azione (swap / reset)
-          (hasLog || onSwap) ? 'pr-14' : '',
+          // Spazio a destra per i bottoni azione (swap / superset / reset)
+          (hasLog || onSwap || onSuperset) ? 'pr-14' : '',
         ].join(' ')}
       >
         {/* Icona stato */}
@@ -153,8 +155,8 @@ export function ExerciseCard({ exercise, log, onClick, onReset, onSwap, isSwappe
         </div>
       </button>
 
-      {/* ── Azioni sovrapposte — stack verticale a destra (swap + reset) ───── */}
-      {(onSwap || (hasLog && onReset)) && (
+      {/* ── Azioni sovrapposte — stack verticale a destra (swap + superset/reset) ── */}
+      {(onSwap || onSuperset || (hasLog && onReset)) && (
         <div className="absolute top-1/2 right-2 -translate-y-1/2 flex flex-col gap-1.5">
           {onSwap && (
             <button
@@ -165,6 +167,17 @@ export function ExerciseCard({ exercise, log, onClick, onReset, onSwap, isSwappe
                 active:bg-[rgba(56,225,255,0.2)]"
             >
               <Repeat2 size={17} strokeWidth={2} />
+            </button>
+          )}
+          {onSuperset && !hasLog && (
+            <button
+              onClick={e => { e.stopPropagation(); setConfirmReset(false); onSuperset(); }}
+              aria-label="Crea superset"
+              className="flex items-center justify-center w-11 h-11 rounded-xl
+                text-[var(--sl-violet-soft)] bg-[rgba(139,92,255,0.12)] border border-[rgba(139,92,255,0.3)]
+                active:bg-[rgba(139,92,255,0.25)]"
+            >
+              <Link2 size={16} strokeWidth={2} />
             </button>
           )}
           {hasLog && onReset && (

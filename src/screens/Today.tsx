@@ -10,8 +10,11 @@ import { useLogStore }        from '../hooks/useLogStore';
 import { useCurrentSession }  from '../hooks/useCurrentSession';
 import { useProgramData }     from '../hooks/useProgramData';
 import { useSwaps }           from '../hooks/useSwaps';
+import { useSupersets }       from '../hooks/useSupersets';
 import { ExerciseCard }       from '../components/ExerciseCard';
 import { SwapPicker }         from '../components/SwapPicker';
+import { SupersetPicker }     from '../components/SupersetPicker';
+import { SupersetCard }       from '../components/SupersetCard';
 import { formatDisplay }      from '../lib/dates';
 
 interface SwapTarget {
@@ -58,7 +61,9 @@ export function Today() {
 
   const navigate = useNavigate();
   const { getSwap, setSwap, clearSwap } = useSwaps();
+  const { partnerOf, setPair, removePairOf } = useSupersets();
   const [swapTarget, setSwapTarget] = useState<SwapTarget | null>(null);
+  const [supersetTarget, setSupersetTarget] = useState<Exercise | null>(null);
 
   // Tutti gli esercizi unici del programma (candidati per la sostituzione)
   const allExercises = useMemo(() => {
@@ -100,6 +105,27 @@ export function Today() {
   }).length;
   const pct           = totalExercises > 0 ? Math.round((completedCount / totalExercises) * 100) : 0;
   const isSessionDone = totalExercises > 0 && completedCount === totalExercises;
+
+  // Raggruppa gli esercizi abbinati in superset (coppie) per il rendering
+  type EffItem = (typeof effectiveExercises)[number];
+  type RenderItem = { kind: 'single'; item: EffItem } | { kind: 'pair'; a: EffItem; b: EffItem };
+  const renderItems: RenderItem[] = [];
+  {
+    const seen = new Set<string>();
+    for (const item of effectiveExercises) {
+      if (seen.has(item.effective.id)) continue;
+      const partnerId = session ? partnerOf(selectedWeek, session.id, item.effective.id) : null;
+      const partner = partnerId ? effectiveExercises.find(x => x.effective.id === partnerId) : undefined;
+      if (partner && !seen.has(partner.effective.id)) {
+        seen.add(item.effective.id);
+        seen.add(partner.effective.id);
+        renderItems.push({ kind: 'pair', a: item, b: partner });
+      } else {
+        seen.add(item.effective.id);
+        renderItems.push({ kind: 'single', item });
+      }
+    }
+  }
 
   return (
     <div className="px-4 pt-5 pb-10 max-w-lg mx-auto space-y-4">
@@ -238,20 +264,28 @@ export function Today() {
 
           {/* Lista esercizi */}
           <div className="space-y-2.5">
-            {effectiveExercises.map(({ original, effective, isSwapped }) => {
-              const log = getExerciseLog(selectedWeek, session.id, dateISO, effective.id);
-              return (
-                <ExerciseCard
-                  key={original.id}
-                  exercise={effective}
-                  log={log}
-                  isSwapped={isSwapped}
-                  onClick={() => navigate(`/esercizio/${selectedWeek}/${session.id}/${effective.id}`)}
-                  onReset={() => clearExerciseLog(selectedWeek, session.id, dateISO, effective.id)}
-                  onSwap={() => setSwapTarget({ originalId: original.id, effective, priorityMuscle: original.muscle, isSwapped })}
-                />
-              );
-            })}
+            {renderItems.map(ri => ri.kind === 'pair' ? (
+              <SupersetCard
+                key={`ss-${ri.a.effective.id}`}
+                a={ri.a.effective}
+                b={ri.b.effective}
+                logA={getExerciseLog(selectedWeek, session.id, dateISO, ri.a.effective.id)}
+                logB={getExerciseLog(selectedWeek, session.id, dateISO, ri.b.effective.id)}
+                onClick={() => navigate(`/superset/${selectedWeek}/${session.id}/${ri.a.effective.id},${ri.b.effective.id}`)}
+                onUnpair={() => removePairOf(selectedWeek, session.id, ri.a.effective.id)}
+              />
+            ) : (
+              <ExerciseCard
+                key={ri.item.original.id}
+                exercise={ri.item.effective}
+                log={getExerciseLog(selectedWeek, session.id, dateISO, ri.item.effective.id)}
+                isSwapped={ri.item.isSwapped}
+                onClick={() => navigate(`/esercizio/${selectedWeek}/${session.id}/${ri.item.effective.id}`)}
+                onReset={() => clearExerciseLog(selectedWeek, session.id, dateISO, ri.item.effective.id)}
+                onSwap={() => setSwapTarget({ originalId: ri.item.original.id, effective: ri.item.effective, priorityMuscle: ri.item.original.muscle, isSwapped: ri.item.isSwapped })}
+                onSuperset={() => setSupersetTarget(ri.item.effective)}
+              />
+            ))}
           </div>
 
           {/* Banner completamento */}
@@ -277,6 +311,18 @@ export function Today() {
           onPick={id => { setSwap(selectedWeek, session.id, swapTarget.originalId, id); setSwapTarget(null); }}
           onRevert={() => { clearSwap(selectedWeek, session.id, swapTarget.originalId); setSwapTarget(null); }}
           onClose={() => setSwapTarget(null)}
+        />
+      )}
+
+      {/* Selettore abbinamento superset */}
+      {supersetTarget && session && (
+        <SupersetPicker
+          current={supersetTarget}
+          candidates={effectiveExercises.filter(x => x.effective.id !== supersetTarget.id).map(x => x.effective)}
+          partnerId={partnerOf(selectedWeek, session.id, supersetTarget.id)}
+          onPick={id => { setPair(selectedWeek, session.id, supersetTarget.id, id); setSupersetTarget(null); }}
+          onRemove={() => { removePairOf(selectedWeek, session.id, supersetTarget.id); setSupersetTarget(null); }}
+          onClose={() => setSupersetTarget(null)}
         />
       )}
     </div>

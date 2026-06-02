@@ -7,6 +7,7 @@ import { Volume }           from './screens/Volume';
 import { Character }        from './screens/Character';
 import { Settings }         from './screens/Settings';
 import { ExerciseLogger }   from './screens/ExerciseLogger';
+import { SupersetLogger }    from './screens/SupersetLogger';
 import { ProfileSelect }      from './screens/ProfileSelect';
 import { useProfileStore }    from './hooks/useProfileStore';
 import { BackgroundsProvider } from './hooks/useBackgrounds';
@@ -42,6 +43,10 @@ export default function App() {
             <Route
               path="esercizio/:weekNumber/:sessionId/:exerciseId"
               element={<ExerciseLogger />}
+            />
+            <Route
+              path="superset/:weekNumber/:sessionId/:ids"
+              element={<SupersetLogger />}
             />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Route>
