@@ -37,6 +37,9 @@ export interface Exercise {
   unilateral?: boolean;
   metric?: MetricUnit;
   notes?: string;
+  /** Marcatore superset: esercizi della stessa sessione con lo stesso valore
+   *  vengono pre-abbinati in un superset (impostato dalla scheda Excel). */
+  supersetGroup?: string;
 }
 
 export interface Session {

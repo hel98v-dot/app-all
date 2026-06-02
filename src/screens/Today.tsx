@@ -5,7 +5,7 @@ import {
   MapPin, Moon, Footprints,
   AlertTriangle, CheckCircle2,
 } from 'lucide-react';
-import { TOTAL_WEEKS, type DayKey, type Exercise, type Muscle } from '../data/program';
+import { TOTAL_WEEKS, type Exercise, type Muscle } from '../data/program';
 import { useLogStore }        from '../hooks/useLogStore';
 import { useCurrentSession }  from '../hooks/useCurrentSession';
 import { useProgramData }     from '../hooks/useProgramData';
@@ -15,6 +15,7 @@ import { ExerciseCard }       from '../components/ExerciseCard';
 import { SwapPicker }         from '../components/SwapPicker';
 import { SupersetPicker }     from '../components/SupersetPicker';
 import { SupersetCard }       from '../components/SupersetCard';
+import { sessionCode }        from '../lib/sessionLabel';
 import { formatDisplay }      from '../lib/dates';
 
 interface SwapTarget {
@@ -24,15 +25,15 @@ interface SwapTarget {
   isSwapped:      boolean;
 }
 
-// Selezione (settimana + giorno) persistita per la sessione del browser:
+// Selezione (settimana + sessione) persistita per la sessione del browser:
 // tornando da un esercizio si resta sulla sessione che si stava guardando,
-// mentre a un nuovo avvio dell'app si riparte dal giorno di calendario.
+// mentre a un nuovo avvio dell'app si riparte dalla sessione del giorno.
 const SELECTION_KEY = 'today-selection-v1';
 
-function readSelection(): { week: number; day: DayKey } | null {
+function readSelection(): { week: number; sessionId: string } | null {
   try {
     const raw = sessionStorage.getItem(SELECTION_KEY);
-    if (raw) return JSON.parse(raw) as { week: number; day: DayKey };
+    if (raw) return JSON.parse(raw) as { week: number; sessionId: string };
   } catch { /* ignore */ }
   return null;
 }
@@ -42,22 +43,27 @@ export function Today() {
   const program = useProgramData();
   const { weekNumber: defaultWeek, dayKey: defaultDay, dateISO } = useCurrentSession(startDate);
 
+  // Sessione di default = quella del giorno di calendario, altrimenti la prima
+  const defaultSessionId =
+    program.baseSessions.find(s => s.day === defaultDay)?.id
+    ?? program.baseSessions[0]?.id
+    ?? '';
+
   const [selectedWeek, setSelectedWeek] = useState<number>(() => {
     const saved = readSelection()?.week;
     return saved && saved >= 1 && saved <= TOTAL_WEEKS ? saved : defaultWeek;
   });
-  const [selectedDay,  setSelectedDay]  = useState<DayKey>(() => {
-    const candidate = readSelection()?.day ?? defaultDay;
-    const hasSession = program.baseSessions.some(s => s.day === candidate);
-    return hasSession ? candidate : (program.baseSessions[0]?.day ?? 'lunedi');
+  const [selectedSessionId, setSelectedSessionId] = useState<string>(() => {
+    const saved = readSelection()?.sessionId;
+    return saved && program.baseSessions.some(s => s.id === saved) ? saved : defaultSessionId;
   });
 
   // Persisti la selezione per la sessione del browser
   useEffect(() => {
     try {
-      sessionStorage.setItem(SELECTION_KEY, JSON.stringify({ week: selectedWeek, day: selectedDay }));
+      sessionStorage.setItem(SELECTION_KEY, JSON.stringify({ week: selectedWeek, sessionId: selectedSessionId }));
     } catch { /* ignore */ }
-  }, [selectedWeek, selectedDay]);
+  }, [selectedWeek, selectedSessionId]);
 
   const navigate = useNavigate();
   const { getSwap, setSwap, clearSwap } = useSwaps();
@@ -78,14 +84,13 @@ export function Today() {
   }, [program]);
 
   const sessionTabs = program.baseSessions.map(s => ({
-    dayKey:    s.day,
     sessionId: s.id,
-    short:     s.dayLabel.slice(0, 3),
+    code:      sessionCode(s),
     isToday:   s.day === defaultDay,
   }));
 
   const week    = program.getWeek(selectedWeek)!;
-  const session = program.getSession(selectedWeek, selectedDay);
+  const session = week?.sessions.find(s => s.id === selectedSessionId);
 
   // Applica le sostituzioni: ogni slot può puntare a un esercizio alternativo
   const effectiveExercises = session
@@ -186,20 +191,20 @@ export function Today() {
         <p className="text-[11px] font-semibold uppercase tracking-widest text-slate-500">Sessione</p>
         <div className="flex gap-1.5 flex-wrap">
           {sessionTabs.map(tab => {
-            const isActive = tab.dayKey === selectedDay;
+            const isActive = tab.sessionId === selectedSessionId;
             return (
               <button
-                key={tab.dayKey}
-                onClick={() => setSelectedDay(tab.dayKey)}
+                key={tab.sessionId}
+                onClick={() => setSelectedSessionId(tab.sessionId)}
                 className={[
                   'flex-1 flex flex-col items-center justify-center py-2 rounded-xl border',
-                  'text-xs font-bold min-h-[48px] transition-colors relative',
+                  'text-sm font-bold min-h-[48px] transition-colors relative',
                   isActive
                     ? 'bg-[rgba(56,225,255,0.16)] border-[var(--sl-cyan)] text-[var(--sl-cyan-soft)]'
                     : 'bg-[rgba(56,225,255,0.05)] border-[var(--sl-line-soft)] text-[var(--sl-text-dim)] active:bg-[rgba(56,225,255,0.12)]',
                 ].join(' ')}
               >
-                <span>{tab.short}</span>
+                <span>{tab.code}</span>
                 {tab.isToday && (
                   <span className={`w-1.5 h-1.5 rounded-full mt-0.5 ${isActive ? 'bg-emerald-300' : 'bg-emerald-500'}`} />
                 )}
@@ -226,7 +231,7 @@ export function Today() {
           <Moon size={48} className="text-slate-600" strokeWidth={1.25} />
           <div>
             <h2 className="text-lg font-bold">Nessuna sessione</h2>
-            <p className="text-slate-400 text-sm mt-1">Questo giorno non ha una sessione nel programma.</p>
+            <p className="text-slate-400 text-sm mt-1">Nessuna sessione selezionata nel programma.</p>
           </div>
           <div className="w-full rounded-2xl bg-[rgba(56,225,255,0.06)] border border-[var(--sl-line-soft)] px-4 py-3 flex items-center gap-3">
             <Footprints size={20} className="text-amber-400 shrink-0" strokeWidth={1.75} />
@@ -241,6 +246,10 @@ export function Today() {
       {session && (
         <>
           <div className="flex items-center gap-2 flex-wrap">
+            <span className="inline-flex items-center justify-center min-w-7 h-7 px-2 rounded-lg
+              text-sm font-black sl-display text-[#06121e] bg-[var(--sl-cyan)] shadow-[0_0_10px_var(--sl-glow)]">
+              {sessionCode(session)}
+            </span>
             <span className="text-slate-200 font-semibold">{session.focus}</span>
             <span className="flex items-center gap-1 text-xs text-slate-500">
               <MapPin size={12} strokeWidth={2} />

@@ -4,6 +4,7 @@
 // Le coppie usano gli id "effettivi" (post-sostituzione) mostrati su Oggi.
 
 import { useCallback, useState } from 'react';
+import type { Session } from '../data/program';
 
 type Pair = [string, string];
 type PairMap = Record<string, Pair[]>; // `${week}:${sid}` -> coppie
@@ -37,6 +38,38 @@ function write(map: PairMap): void {
 
 function keyOf(weekNumber: number, sessionId: string): string {
   return `${weekNumber}:${sessionId}`;
+}
+
+/**
+ * Rigenera le coppie superset dai marcatori `supersetGroup` del programma
+ * (impostati dalla scheda Excel). Esercizi della stessa sessione con lo stesso
+ * valore vengono abbinati. Applica le stesse coppie a tutte le 5 settimane.
+ * Sovrascrive le coppie esistenti del profilo (chiamata all'import della scheda).
+ */
+export function seedSupersetsFromProgram(sessions: Session[]): void {
+  const map: PairMap = {};
+  for (const s of sessions) {
+    const groups = new Map<string, string[]>();
+    for (const ex of s.exercises) {
+      if (ex.supersetGroup) {
+        const arr = groups.get(ex.supersetGroup) ?? [];
+        arr.push(ex.id);
+        groups.set(ex.supersetGroup, arr);
+      }
+    }
+    const pairs: Pair[] = [];
+    for (const ids of groups.values()) {
+      for (let i = 0; i + 1 < ids.length; i += 2) {
+        pairs.push([ids[i]!, ids[i + 1]!]);
+      }
+    }
+    if (pairs.length) {
+      for (let wk = 1; wk <= 5; wk++) {
+        map[keyOf(wk, s.id)] = pairs.map(p => [p[0], p[1]] as Pair);
+      }
+    }
+  }
+  write(map);
 }
 
 export interface UseSupersetsReturn {

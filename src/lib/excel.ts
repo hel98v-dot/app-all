@@ -27,10 +27,6 @@ const VALID_MUSCLES = new Set<string>([
   'Glutei','Quadricipiti','Femorali','Addome',
 ]);
 
-function normDay(raw: string): string {
-  return DAY_MAP[raw.trim().toLowerCase()] ?? 'lunedi';
-}
-
 function normMuscle(raw: string): Muscle {
   const s = raw.trim();
   // Case-insensitive match
@@ -53,7 +49,8 @@ export function downloadTemplate(): void {
     ['ISTRUZIONI — Scheda Allenamento'],
     [''],
     ['• Ogni riga = un esercizio. Le righe dello stesso giorno appartengono alla stessa sessione.'],
-    ['• Sessione: Lunedì | Martedì | Giovedì | Venerdì | Sabato (o nomi custom come "A", "B")'],
+    ['• Sessione: usa A / B / C per i blocchi (A = Push, B = Glutei/Gambe, C = Pull).'],
+    ['    Per le sessioni a casa aggiungi "1": A1 / B1 / C1. (Vanno bene anche i giorni: Lunedì…)'],
     ['• Luogo: palestra  o  casa'],
     ['• Muscolo: Petto | Dorso | Spalle | Bicipiti | Tricipiti | Glutei | Quadricipiti | Femorali | Addome'],
     ['• Set: numero intero (es. 4)'],
@@ -62,6 +59,7 @@ export function downloadTemplate(): void {
     ['• Recupero: stringa (es. 2\'  oppure  90")'],
     ['• Unilaterale: sì  oppure  no'],
     ['• Metrica: reps  oppure  metri  (per carries/trasporti)'],
+    ['• Superset: stesso valore (es. 1) su due esercizi della stessa sessione = li pre-abbina'],
     ['• Note: testo libero opzionale'],
     [''],
     ['Salva il file, poi caricalo nell\'app dalla schermata Impostazioni → Profilo → Carica scheda.'],
@@ -70,18 +68,19 @@ export function downloadTemplate(): void {
 
   // Foglio scheda con intestazioni + righe di esempio
   const rows: (string | number)[][] = [
-    ['Sessione','Luogo','Esercizio','Muscolo','Set','Reps','RPE','Recupero','Unilaterale','Metrica','Note'],
-    ['Lunedì','palestra','Panca piana con manubri','Petto', 4,'8-10','7-8',"2'",'no','reps',''],
-    ['Lunedì','palestra','Alzate laterali manubri','Spalle',3,'12-15','8-9',"90\"",'no','reps',''],
-    ['Martedì','casa','Hip thrust BW','Glutei',4,'12-15','8',"90\"",'no','reps',''],
-    ['Martedì','casa','Ab wheel rollout','Addome',4,'8-12','8',"90\"",'no','reps',''],
+    ['Sessione','Luogo','Esercizio','Muscolo','Set','Reps','RPE','Recupero','Unilaterale','Metrica','Superset','Note'],
+    ['A','palestra','Panca piana con manubri','Petto', 4,'8-10','7-8',"2'",'no','reps','',''],
+    ['A','palestra','Alzate laterali manubri','Spalle',3,'12-15','8-9',"90\"",'no','reps','1',''],
+    ['A','palestra','Pushdown ai cavi','Tricipiti',3,'10-12','8-9',"90\"",'no','reps','1',''],
+    ['B1','casa','Hip thrust BW','Glutei',4,'12-15','8',"90\"",'no','reps','',''],
+    ['B1','casa','Ab wheel rollout','Addome',4,'8-12','8',"90\"",'no','reps','',''],
   ];
 
   const ws = XLSX.utils.aoa_to_sheet(rows);
   ws['!cols'] = [
     {wch:12},{wch:10},{wch:35},{wch:14},
     {wch:6},{wch:10},{wch:8},{wch:10},
-    {wch:12},{wch:8},{wch:30},
+    {wch:12},{wch:8},{wch:10},{wch:30},
   ];
   XLSX.utils.book_append_sheet(wb, ws, 'Scheda');
 
@@ -147,40 +146,59 @@ export function parseScheduleFile(file: File): Promise<ParseResult> {
           recupero:    idx('recupero') ?? 7,
           unilaterale: idx('unilateral') ?? 8,
           metrica:     idx('metrica') ?? 9,
-          note:        idx('note')    ?? 10,
+          superset:    idx('superset'),     // colonna opzionale
+          note:        idx('note')    ?? 11,
         };
 
+        const slugify = (s: string): string =>
+          s.toLowerCase().normalize('NFD').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'sess';
+
         const warnings: string[] = [];
-        // Mappa dayKey → { exercises[], luogo }
-        const sessionMap = new Map<string, { exercises: Exercise[]; location: Location; label: string }>();
+        interface SessionAcc {
+          exercises: Exercise[];
+          location: Location;
+          label: string;
+          dayKey: string;
+          sessionId: string;
+        }
+        const sessionMap = new Map<string, SessionAcc>();
         const sessionOrder: string[] = [];
+        const usedIds = new Set<string>();
 
         for (let r = headerIdx + 1; r < raw.length; r++) {
           const row = raw[r] as unknown[];
-          const getCell = (i: number) => String(row[i] ?? '').trim();
+          const getCell = (i: number | null) => (i === null ? '' : String(row[i] ?? '').trim());
 
           const sessionName = getCell(COL.sessione);
           const exerciseName = getCell(COL.esercizio);
           if (!sessionName || !exerciseName) continue;
 
-          const dayKey = normDay(sessionName);
-          const mapKey = dayKey + '_' + sessionName; // distingue sessioni con stesso giorno
+          const mapKey = sessionName.toLowerCase();
+          const knownDay = DAY_MAP[mapKey];
 
           if (!sessionMap.has(mapKey)) {
+            // Id univoco: giorno noto → 'lun'/'mar'…, altrimenti slug del nome (es. "A" → "a")
+            let sid = knownDay ? knownDay.slice(0, 3) : slugify(sessionName);
+            while (usedIds.has(sid)) sid += 'x';
+            usedIds.add(sid);
             sessionMap.set(mapKey, {
               exercises: [],
               location: getCell(COL.luogo).toLowerCase() === 'casa' ? 'casa' : 'palestra',
               label: sessionName,
+              dayKey: knownDay ?? 'lunedi',
+              sessionId: sid,
             });
             sessionOrder.push(mapKey);
           }
 
+          const entry = sessionMap.get(mapKey)!;
           const setsVal = parseInt(getCell(COL.set)) || 3;
           const metricRaw = getCell(COL.metrica).toLowerCase();
           const isMeters = metricRaw === 'metri' || metricRaw === 'meters' || metricRaw === 'm';
+          const supersetVal = getCell(COL.superset);
 
           const exercise: Exercise = {
-            id: `${dayKey}-${sessionMap.get(mapKey)!.exercises.length}`,
+            id: `${entry.sessionId}-${entry.exercises.length}`,
             name:           exerciseName,
             muscle:         normMuscle(getCell(COL.muscolo)),
             prescribedSets: setsVal,
@@ -190,9 +208,10 @@ export function parseScheduleFile(file: File): Promise<ParseResult> {
             ...(normBool(row[COL.unilaterale]) ? { unilateral: true as const } : {}),
             ...(isMeters ? { metric: 'meters' as MetricUnit } : {}),
             ...(getCell(COL.note) ? { notes: getCell(COL.note) } : {}),
+            ...(supersetVal ? { supersetGroup: supersetVal } : {}),
           };
 
-          sessionMap.get(mapKey)!.exercises.push(exercise);
+          entry.exercises.push(exercise);
         }
 
         if (sessionMap.size === 0) {
@@ -201,13 +220,13 @@ export function parseScheduleFile(file: File): Promise<ParseResult> {
         }
 
         const sessions: Session[] = sessionOrder.map(key => {
-          const { exercises, location, label } = sessionMap.get(key)!;
-          const dayKey = normDay(label) as import('../data/program').DayKey;
-          const sessionId = dayKey.slice(0, 3); // 'lun', 'mar', etc.
+          const { exercises, location, label, dayKey, sessionId } = sessionMap.get(key)!;
+          const dk = dayKey as import('../data/program').DayKey;
+          const isDayName = DAY_MAP[label.toLowerCase()] !== undefined;
           return {
             id:       sessionId,
-            day:      dayKey,
-            dayLabel: DAY_LABELS[dayKey] ?? label,
+            day:      dk,
+            dayLabel: isDayName ? (DAY_LABELS[dayKey] ?? label) : label,
             focus:    label,
             location,
             exercises,
@@ -283,7 +302,7 @@ export function exportLogToExcel(
 
   // Foglio 2: scheda programma (come il template)
   const schedRows: (string | number)[][] = [
-    ['Sessione','Luogo','Esercizio','Muscolo','Set','Reps','RPE','Recupero','Unilaterale','Metrica','Note'],
+    ['Sessione','Luogo','Esercizio','Muscolo','Set','Reps','RPE','Recupero','Unilaterale','Metrica','Superset','Note'],
   ];
   for (const s of sessions) {
     for (const ex of s.exercises) {
@@ -298,6 +317,7 @@ export function exportLogToExcel(
         ex.rest,
         ex.unilateral ? 'sì' : 'no',
         ex.metric === 'meters' ? 'metri' : 'reps',
+        ex.supersetGroup ?? '',
         ex.notes ?? '',
       ]);
     }

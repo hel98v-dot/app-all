@@ -16,6 +16,7 @@ import {
   type Week,
 } from '../data/program';
 import { customProgramKey } from './useProfileStore';
+import { seedSupersetsFromProgram } from './useSupersets';
 
 // ── Legge il programma custom da localStorage ──────────────────────────────
 
@@ -43,6 +44,8 @@ function readCustomSessions(): Session[] | null {
 /** Salva un programma custom per il profilo attivo. */
 export function saveCustomProgram(sessions: Session[]): void {
   localStorage.setItem(customProgramKey(getActiveProfileId()), JSON.stringify(sessions));
+  // Pre-abbina i superset definiti nella scheda (colonna Superset)
+  seedSupersetsFromProgram(sessions);
   window.location.reload();
 }
 
