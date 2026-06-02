@@ -9,6 +9,7 @@ import {
   RATING_COLORS,
   ratingFromValue,
 } from '../data/character';
+import { BodyweightCard } from '../components/BodyweightCard';
 
 // ── Colori tema ───────────────────────────────────────────────────────────────
 
@@ -364,6 +365,14 @@ export function Character() {
             animated={animated}
           />
         ))}
+      </div>
+
+      {/* ── Corpo ────────────────────────────────────────────────────────────── */}
+      <div className="space-y-3 pt-1">
+        <h2 className="sl-heading text-base flex items-center gap-2">
+          <span>⚖️</span> Corpo
+        </h2>
+        <BodyweightCard />
       </div>
 
       {/* ── Achievement ──────────────────────────────────────────────────────── */}
