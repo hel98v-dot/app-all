@@ -2,7 +2,7 @@
 // Schermata Personaggio — statistiche RPG, radar SVG, achievement.
 
 import { useEffect, useState } from 'react';
-import { Shield, Sword }       from 'lucide-react';
+import { Shield, Sword, Ruler } from 'lucide-react';
 import { useCharacterStats }   from '../hooks/useCharacterStats';
 import {
   ACHIEVEMENTS,
@@ -10,6 +10,9 @@ import {
   ratingFromValue,
 } from '../data/character';
 import { BodyweightCard } from '../components/BodyweightCard';
+import { MeasurementCard } from '../components/MeasurementCard';
+import { CelebrationOverlay } from '../components/CelebrationOverlay';
+import { useCharacterCelebration } from '../hooks/useCharacterCelebration';
 
 // ── Colori tema ───────────────────────────────────────────────────────────────
 
@@ -259,6 +262,11 @@ export function Character() {
   const globalRating = ratingFromValue(stats.globalLevel);
   const { bg: glBg, text: glText } = RATING_COLORS[globalRating];
 
+  // Celebrazione di nuovi achievement / level-up
+  const { celebration, dismiss } = useCharacterCelebration(
+    stats.unlockedAchievements, stats.globalLevel, hasData,
+  );
+
   // ── Placeholder ─────────────────────────────────────────────────────────────
   if (!hasData) {
     return (
@@ -373,6 +381,15 @@ export function Character() {
           <span>⚖️</span> Corpo
         </h2>
         <BodyweightCard />
+        <MeasurementCard
+          storageName="waist"
+          title="Circonferenza vita"
+          unit="cm"
+          step={0.5}
+          min={40}
+          defaultValue={80}
+          icon={<Ruler size={14} className="text-[var(--sl-cyan)]" />}
+        />
       </div>
 
       {/* ── Achievement ──────────────────────────────────────────────────────── */}
@@ -393,6 +410,14 @@ export function Character() {
           ))}
         </div>
       </div>
+
+      {celebration && (
+        <CelebrationOverlay
+          achievements={celebration.achievements}
+          levelUp={celebration.levelUp}
+          onClose={dismiss}
+        />
+      )}
     </div>
   );
 }
