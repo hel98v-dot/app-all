@@ -39,6 +39,25 @@ function normBool(raw: unknown): boolean {
   return s === 'sì' || s === 'si' || s === 'yes' || s === '1' || s === 'true';
 }
 
+/**
+ * Legge una cella di tipo "range" (reps / RPE come "8-10", "7-8").
+ * Excel trasforma in DATA i valori tipo "8-10" (→ 8 ottobre) salvandoli come
+ * numero seriale (es. 46303). Qui lo riconosciamo e ricostruiamo il range dai
+ * due numeri della data, in ordine crescente (i range reps/RPE sono crescenti).
+ */
+function parseRangeCell(raw: unknown): string {
+  if (typeof raw === 'number' && raw > 1000) {
+    const d = new Date(Math.round((raw - 25569) * 86400000)); // seriale Excel → ms UTC
+    const m = d.getUTCMonth() + 1;
+    const day = d.getUTCDate();
+    if (m >= 1 && m <= 31 && day >= 1 && day <= 31) {
+      const [lo, hi] = [m, day].sort((a, b) => a - b);
+      return `${lo}-${hi}`;
+    }
+  }
+  return String(raw ?? '').trim();
+}
+
 // ── 1. Download template vuoto ────────────────────────────────────────────────
 
 export function downloadTemplate(): void {
@@ -61,6 +80,9 @@ export function downloadTemplate(): void {
     ['• Metrica: reps  oppure  metri  (per carries/trasporti)'],
     ['• Superset: stesso valore (es. 1) su due esercizi della stessa sessione = li pre-abbina'],
     ['• Note: testo libero opzionale'],
+    [''],
+    ['⚠ Reps/RPE come "8-10" possono essere convertiti in DATE da Excel: formatta quelle'],
+    ['  colonne come TESTO (o anteponi un apice: \'8-10). L\'app prova comunque a correggere.'],
     [''],
     ['Salva il file, poi caricalo nell\'app dalla schermata Impostazioni → Profilo → Carica scheda.'],
   ];
@@ -202,8 +224,8 @@ export function parseScheduleFile(file: File): Promise<ParseResult> {
             name:           exerciseName,
             muscle:         normMuscle(getCell(COL.muscolo)),
             prescribedSets: setsVal,
-            repsTarget:     getCell(COL.reps)     || '10-12',
-            rpeTarget:      getCell(COL.rpe)      || '7-8',
+            repsTarget:     parseRangeCell(row[COL.reps]) || '10-12',
+            rpeTarget:      parseRangeCell(row[COL.rpe])  || '7-8',
             rest:           getCell(COL.recupero) || "90\"",
             ...(normBool(row[COL.unilaterale]) ? { unilateral: true as const } : {}),
             ...(isMeters ? { metric: 'meters' as MetricUnit } : {}),
