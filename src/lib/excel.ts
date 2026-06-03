@@ -4,6 +4,7 @@
 import * as XLSX from 'xlsx';
 import type { Session, Exercise, Muscle, Location, MetricUnit } from '../data/program';
 import type { SessionLog } from '../types';
+import { parseRangeCell } from './excelRange';
 
 // ── Mapping nomi italiani → DayKey ────────────────────────────────────────────
 
@@ -37,25 +38,6 @@ function normMuscle(raw: string): Muscle {
 function normBool(raw: unknown): boolean {
   const s = String(raw ?? '').toLowerCase().trim();
   return s === 'sì' || s === 'si' || s === 'yes' || s === '1' || s === 'true';
-}
-
-/**
- * Legge una cella di tipo "range" (reps / RPE come "8-10", "7-8").
- * Excel trasforma in DATA i valori tipo "8-10" (→ 8 ottobre) salvandoli come
- * numero seriale (es. 46303). Qui lo riconosciamo e ricostruiamo il range dai
- * due numeri della data, in ordine crescente (i range reps/RPE sono crescenti).
- */
-function parseRangeCell(raw: unknown): string {
-  if (typeof raw === 'number' && raw > 1000) {
-    const d = new Date(Math.round((raw - 25569) * 86400000)); // seriale Excel → ms UTC
-    const m = d.getUTCMonth() + 1;
-    const day = d.getUTCDate();
-    if (m >= 1 && m <= 31 && day >= 1 && day <= 31) {
-      const [lo, hi] = [m, day].sort((a, b) => a - b);
-      return `${lo}-${hi}`;
-    }
-  }
-  return String(raw ?? '').trim();
 }
 
 // ── 1. Download template vuoto ────────────────────────────────────────────────

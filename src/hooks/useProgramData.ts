@@ -17,6 +17,7 @@ import {
 } from '../data/program';
 import { customProgramKey } from './useProfileStore';
 import { seedSupersetsFromProgram } from './useSupersets';
+import { repairRange } from '../lib/excelRange';
 
 // ── Legge il programma custom da localStorage ──────────────────────────────
 
@@ -31,12 +32,24 @@ function getActiveProfileId(): string {
   return 'default';
 }
 
+/** Ripara reps/RPE salvati come seriali-data Excel (es. "46303" → "8-10"). */
+export function repairSessions(sessions: Session[]): Session[] {
+  return sessions.map(s => ({
+    ...s,
+    exercises: s.exercises.map(e => ({
+      ...e,
+      repsTarget: repairRange(e.repsTarget),
+      rpeTarget:  repairRange(e.rpeTarget),
+    })),
+  }));
+}
+
 function readCustomSessions(): Session[] | null {
   try {
     const raw = localStorage.getItem(customProgramKey(getActiveProfileId()));
     if (!raw) return null;
     const parsed = JSON.parse(raw) as Session[];
-    if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+    if (Array.isArray(parsed) && parsed.length > 0) return repairSessions(parsed);
   } catch { /* ignore */ }
   return null;
 }

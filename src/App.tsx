@@ -13,6 +13,7 @@ import { useProfileStore }    from './hooks/useProfileStore';
 import { BackgroundsProvider } from './hooks/useBackgrounds';
 import { RestTimerProvider }   from './hooks/useRestTimer';
 import { ErrorBoundary }       from './components/ErrorBoundary';
+import { PWAAutoUpdate }        from './components/PWAAutoUpdate';
 
 export default function App() {
   const { profiles, activeProfile, createAndActivate, switchProfile } = useProfileStore();
@@ -32,6 +33,7 @@ export default function App() {
 
   return (
     <BackgroundsProvider>
+      <PWAAutoUpdate />
       <RestTimerProvider>
       <ErrorBoundary>
       <BrowserRouter>
