@@ -86,11 +86,19 @@ export function RestTimerProvider({ children }: { children: ReactNode }) {
   const endsAtRef = useRef<number>(0);
   const intervalRef = useRef<number | null>(null);
   const labelRef = useRef<string>('');
+  const finishTimeoutRef = useRef<number | null>(null);
 
   const clearTick = useCallback((): void => {
     if (intervalRef.current !== null) {
       window.clearInterval(intervalRef.current);
       intervalRef.current = null;
+    }
+  }, []);
+
+  const clearFinish = useCallback((): void => {
+    if (finishTimeoutRef.current !== null) {
+      window.clearTimeout(finishTimeoutRef.current);
+      finishTimeoutRef.current = null;
     }
   }, []);
 
@@ -102,10 +110,17 @@ export function RestTimerProvider({ children }: { children: ReactNode }) {
       if ('vibrate' in navigator) navigator.vibrate([120, 60, 120]);
       beep();
       notifyRestDone(labelRef.current);
+      // Auto-chiusura: il banner sparisce da solo dopo un attimo
+      clearFinish();
+      finishTimeoutRef.current = window.setTimeout(() => {
+        finishTimeoutRef.current = null;
+        endsAtRef.current = 0;
+        setState(INITIAL);
+      }, 2500);
     } else {
       setState(s => ({ ...s, remaining: Math.ceil(remainingMs / 1000) }));
     }
-  }, [clearTick]);
+  }, [clearTick, clearFinish]);
 
   const start = useCallback((seconds: number, label = ''): void => {
     // Chiedi il permesso notifiche al primo avvio (siamo in un gesto utente).
@@ -116,12 +131,14 @@ export function RestTimerProvider({ children }: { children: ReactNode }) {
     } catch { /* ignore */ }
     labelRef.current = label;
     clearTick();
+    clearFinish();
     endsAtRef.current = Date.now() + seconds * 1000;
     setState({ running: true, finished: false, remaining: seconds, total: seconds, label });
     intervalRef.current = window.setInterval(tick, 250);
-  }, [clearTick, tick]);
+  }, [clearTick, clearFinish, tick]);
 
   const add = useCallback((deltaSeconds: number): void => {
+    clearFinish();
     const base = endsAtRef.current > Date.now() ? endsAtRef.current : Date.now();
     endsAtRef.current = base + deltaSeconds * 1000;
     const remaining = Math.max(0, Math.ceil((endsAtRef.current - Date.now()) / 1000));
@@ -134,16 +151,17 @@ export function RestTimerProvider({ children }: { children: ReactNode }) {
       remaining,
       total: Math.max(s.total, remaining),
     }));
-  }, [clearTick, tick]);
+  }, [clearTick, clearFinish, tick]);
 
   const stop = useCallback((): void => {
     clearTick();
+    clearFinish();
     endsAtRef.current = 0;
     setState(INITIAL);
-  }, [clearTick]);
+  }, [clearTick, clearFinish]);
 
   // Pulizia all'unmount del provider
-  useEffect(() => () => clearTick(), [clearTick]);
+  useEffect(() => () => { clearTick(); clearFinish(); }, [clearTick, clearFinish]);
 
   return (
     <RestTimerContext.Provider value={{ ...state, start, add, stop }}>

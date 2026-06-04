@@ -287,14 +287,22 @@ export function useLogStore(): UseLogStoreReturn {
       const existing = getSessionLog(weekNumber, sessionId, dateISO);
       if (!existing) return;
 
-      const updatedSession: SessionLog = {
-        ...existing,
-        exercises: existing.exercises.filter(e => e.exerciseId !== exerciseId),
-      };
+      const exercises = existing.exercises.filter(e => e.exerciseId !== exerciseId);
 
-      saveSessionLog(updatedSession);
+      if (exercises.length === 0) {
+        // Sessione rimasta vuota → rimuovila del tutto, così sparisce da
+        // calendario, registro e volume (anche se era stata aperta in passato).
+        commit({
+          ...store,
+          sessions: store.sessions.filter(
+            s => !(s.weekNumber === weekNumber && s.sessionId === sessionId && s.date === dateISO),
+          ),
+        });
+      } else {
+        saveSessionLog({ ...existing, exercises });
+      }
     },
-    [getSessionLog, saveSessionLog],
+    [getSessionLog, saveSessionLog, store, commit],
   );
 
   // ---- Import / Export / Reset ------------------------------------

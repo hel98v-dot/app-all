@@ -17,6 +17,7 @@ import { SupersetPicker }     from '../components/SupersetPicker';
 import { SupersetCard }       from '../components/SupersetCard';
 import { sessionCode }        from '../lib/sessionLabel';
 import { switchSchedule }     from '../lib/schedules';
+import { doneSets }           from '../lib/completion';
 import { formatDisplay }      from '../lib/dates';
 
 interface SwapTarget {
@@ -107,7 +108,7 @@ export function Today() {
   const totalExercises = effectiveExercises.length;
   const completedCount = effectiveExercises.filter(({ effective }) => {
     const log = getExerciseLog(selectedWeek, session!.id, dateISO, effective.id);
-    return (log?.sets.length ?? 0) >= effective.prescribedSets;
+    return log ? doneSets(log) >= effective.prescribedSets : false;
   }).length;
   const pct           = totalExercises > 0 ? Math.round((completedCount / totalExercises) * 100) : 0;
   const isSessionDone = totalExercises > 0 && completedCount === totalExercises;
@@ -142,12 +143,12 @@ export function Today() {
         <h1 className="sl-heading text-2xl mt-1">{formatDisplay(dateISO)}</h1>
       </div>
 
-      {/* Selettore scheda (solo se ci sono schede custom) */}
-      {program.schedules.length > 0 && (
+      {/* Selettore scheda (solo con 2+ schede) */}
+      {program.schedules.length >= 2 && (
         <div className="space-y-1.5">
           <p className="text-[11px] font-semibold uppercase tracking-widest text-slate-500">Scheda</p>
           <div className="flex gap-1.5 flex-wrap">
-            {[{ id: 'default', name: 'Predefinita' }, ...program.schedules.map(s => ({ id: s.id, name: s.name }))].map(sch => {
+            {program.schedules.map(sch => {
               const isActive = sch.id === program.activeScheduleId;
               return (
                 <button

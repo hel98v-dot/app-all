@@ -6,6 +6,7 @@ import { ChevronDown, ChevronRight, Dumbbell, Calendar } from 'lucide-react';
 import { useLogStore }     from '../hooks/useLogStore';
 import { useProgramData }  from '../hooks/useProgramData';
 import { formatDisplay, today, parseDate, addDays } from '../lib/dates';
+import { sessionStatus, type SessionStatus } from '../lib/completion';
 import type { ExerciseLog, SessionLog } from '../types';
 
 // ── Calcoli volume ────────────────────────────────────────────────────────────
@@ -54,17 +55,19 @@ function ExerciseRow({ log, weekNumber, findEx }: { log: ExerciseLog; weekNumber
   const found = findEx(weekNumber, log.exerciseId);
   const name  = found?.exercise.name ?? log.exerciseId;
   const vol   = exerciseVolume(log);
+  // Mostra solo le serie effettivamente svolte (no campi pre-compilati a 0)
+  const realSets = log.sets.filter(s => s.reps > 0);
 
   return (
     <div className="flex items-start justify-between py-2 border-b border-[var(--sl-line-soft)] last:border-0">
       <div className="flex-1 min-w-0 pr-3">
         <p className="text-sm text-slate-200 font-medium leading-snug">{name}</p>
         <p className="text-xs text-[var(--sl-text-dim)] mt-0.5">
-          {log.sets.length} set
-          {log.sets.length > 0 && (
+          {realSets.length} set
+          {realSets.length > 0 && (
             <>
               {' · '}
-              {log.sets.map((s, i) => (
+              {realSets.map((s, i) => (
                 <span key={i} className="tabular-nums">
                   {i > 0 && ', '}
                   {s.reps}×{s.kg}kg
@@ -210,13 +213,16 @@ function WeekSection({ group, findEx }: { group: WeekGroup; findEx: FindEx }) {
 
 const WEEKDAYS = ['L', 'M', 'M', 'G', 'V', 'S', 'D'];
 
-function FourWeekGrid({ logs }: { logs: SessionLog[] }) {
+function FourWeekGrid({ logs, prescribedOf }: { logs: SessionLog[]; prescribedOf: (id: string) => number | undefined }) {
   const t = today();
 
-  // Date con almeno una sessione svolta (volume > 0)
-  const doneDates = new Set<string>();
+  // Stato per data: 'full' (verde) o 'partial' (giallo); le vuote sono escluse.
+  const statusByDate = new Map<string, SessionStatus>();
   for (const log of logs) {
-    if (sessionVolume(log) > 0) doneDates.add(log.date);
+    const st = sessionStatus(log, prescribedOf);
+    if (st === 'empty') continue;
+    const prev = statusByDate.get(log.date);
+    statusByDate.set(log.date, (st === 'partial' || prev === 'partial') ? 'partial' : 'full');
   }
 
   // Lunedì della settimana corrente, poi indietro di 3 settimane → 28 giorni
@@ -234,7 +240,7 @@ function FourWeekGrid({ logs }: { logs: SessionLog[] }) {
           <div key={i} className="text-center sl-label text-[9px] text-[var(--sl-text-dim)] pb-0.5">{d}</div>
         ))}
         {days.map(d => {
-          const done    = doneDates.has(d);
+          const status  = statusByDate.get(d);
           const isToday = d === t;
           const future  = d > t;
           const dayNum  = parseDate(d).getDate();
@@ -243,9 +249,11 @@ function FourWeekGrid({ logs }: { logs: SessionLog[] }) {
               key={d}
               className={[
                 'aspect-square rounded-lg flex items-center justify-center text-[13px] tabular-nums',
-                done
+                status === 'full'
                   ? 'bg-emerald-500/90 text-white font-bold border border-emerald-400/50 shadow-[0_0_10px_rgba(16,185,129,0.35)]'
-                  : 'bg-[rgba(56,225,255,0.04)] border border-[var(--sl-line-soft)] text-[var(--sl-text-dim)]',
+                  : status === 'partial'
+                    ? 'bg-amber-500/85 text-white font-bold border border-amber-400/50 shadow-[0_0_10px_rgba(245,200,16,0.3)]'
+                    : 'bg-[rgba(56,225,255,0.04)] border border-[var(--sl-line-soft)] text-[var(--sl-text-dim)]',
                 isToday ? 'ring-2 ring-[var(--sl-cyan)]' : '',
                 future  ? 'opacity-35' : '',
               ].join(' ')}
@@ -267,7 +275,9 @@ function FourWeekGrid({ logs }: { logs: SessionLog[] }) {
 export function History() {
   const { getAllSessionLogs } = useLogStore();
   const program = useProgramData();
-  const logs    = getAllSessionLogs();
+  const prescribedOf = (id: string) => program.findExerciseById(id)?.exercise.prescribedSets;
+  // Escludi le sessioni vuote (aperte ma senza serie effettivamente svolte)
+  const logs    = getAllSessionLogs().filter(s => sessionStatus(s, prescribedOf) !== 'empty');
   const groups  = groupByWeek(logs);
 
   if (groups.length === 0) {
@@ -302,7 +312,7 @@ export function History() {
       </div>
 
       {/* Calendario ultime 4 settimane */}
-      <FourWeekGrid logs={logs} />
+      <FourWeekGrid logs={logs} prescribedOf={prescribedOf} />
 
       {/* Gruppi settimana */}
       {groups.map(g => (

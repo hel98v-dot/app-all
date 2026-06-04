@@ -71,8 +71,14 @@ export function readSchedules(): SchedulesStore {
   const pid = activeProfileId();
   const existing = readRaw(pid);
   if (existing) {
+    let activeId = existing.activeId;
+    // Se esistono schede, "default" non è una scheda attiva valida: usa la prima.
+    if (existing.list.length > 0 && !existing.list.some(s => s.id === activeId)) {
+      activeId = existing.list[0]!.id;
+      writeRaw(pid, { ...existing, activeId });
+    }
     return {
-      activeId: existing.activeId,
+      activeId,
       list: existing.list.map(s => ({ ...s, sessions: repairSessions(s.sessions) })),
     };
   }
@@ -140,6 +146,17 @@ export function deleteSchedule(id: string): void {
   if (!store) return;
   store.list = store.list.filter(s => s.id !== id);
   if (store.activeId === id) store.activeId = store.list[0]?.id ?? DEFAULT_SCHEDULE_ID;
+  writeRaw(pid, store);
+  window.location.reload();
+}
+
+export function renameSchedule(id: string, name: string): void {
+  const pid = activeProfileId();
+  const store = readRaw(pid);
+  if (!store) return;
+  const sch = store.list.find(s => s.id === id);
+  if (!sch) return;
+  sch.name = name.trim().slice(0, 40) || sch.name;
   writeRaw(pid, store);
   window.location.reload();
 }

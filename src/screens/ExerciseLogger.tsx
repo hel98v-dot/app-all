@@ -309,7 +309,6 @@ export function ExerciseLogger() {
   }
 
   const totalVolume = sets.reduce((acc, s) => acc + setVolume(s), 0);
-  const canSave     = sets.some(s => s.reps > 0);
 
   // ── Record live (confronto con i massimi precedenti) ──────────────────────────
   const current  = bestOfSets(sets);
@@ -324,22 +323,6 @@ export function ExerciseLogger() {
   ].filter(Boolean).join(' · ');
 
   const trendPoints = history.map(e => e.volume).slice(-8);
-
-  function handleSave() {
-    if (!canSave) return;
-
-    saveExerciseLog(weekNumber, sid, dateISO, {
-      exerciseId:  exercise.id,
-      sets,
-      completedAt: new Date().toISOString(),
-      ...(notes.trim() ? { notes: notes.trim() } : {}),
-    });
-
-    if ('vibrate' in navigator) navigator.vibrate(isPR ? [40, 40, 80] : 50);
-    show(isPR ? '🔥 Nuovo record! Salvato ✓' : 'Allenamento salvato ✓', 'ok');
-
-    setTimeout(() => navigate('/'), 700);
-  }
 
   // ── Render ────────────────────────────────────────────────────────────────────
   return (
@@ -496,19 +479,19 @@ export function ExerciseLogger() {
 
                 <div className="space-y-2.5">
                   <NumField
-                    label={metricLabel}
-                    value={s.reps}
-                    step={1}
-                    min={0}
-                    onChange={v => updateSet(idx, 'reps', v)}
-                  />
-                  <NumField
                     label="kg"
                     value={s.kg}
                     step={kgStep}
                     microStep={kgMicro}
                     min={0}
                     onChange={v => updateSet(idx, 'kg', v)}
+                  />
+                  <NumField
+                    label={metricLabel}
+                    value={s.reps}
+                    step={1}
+                    min={0}
+                    onChange={v => updateSet(idx, 'reps', v)}
                   />
                 </div>
 
@@ -576,19 +559,11 @@ export function ExerciseLogger() {
           </div>
         )}
 
-        {/* Bottone Salva — sticky in fondo */}
-        <div className="sticky bottom-3 z-10 pt-4 -mb-1
-          bg-gradient-to-t from-[var(--sl-bg)] via-[var(--sl-bg)]/85 to-transparent">
-          <button
-            onClick={handleSave}
-            disabled={!canSave}
-            className="sl-btn w-full flex items-center justify-center gap-2
-              py-4 rounded-2xl text-base min-h-[56px]"
-          >
-            <Check size={20} strokeWidth={2.5} />
-            {canSave ? 'Salva allenamento' : 'Inserisci almeno 1 set con reps'}
-          </button>
-        </div>
+        {/* Salvataggio automatico */}
+        <p className="flex items-center justify-center gap-1.5 text-xs text-[var(--sl-text-dim)] pt-2">
+          <Check size={13} strokeWidth={2.5} className="text-emerald-400" />
+          Salvataggio automatico
+        </p>
       </div>
 
       <ToastStack toasts={toasts} />

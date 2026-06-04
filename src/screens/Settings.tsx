@@ -3,14 +3,14 @@ import { useRef, useState } from 'react';
 import {
   Download, Upload, RotateCcw, Trash2,
   Calendar, Info, ChevronRight,
-  User, FileSpreadsheet, Plus, Check, X, Timer,
+  User, FileSpreadsheet, Plus, Check, X, Timer, Pencil,
 } from 'lucide-react';
 import { usePref }            from '../lib/prefs';
 import { useLogStore }        from '../hooks/useLogStore';
 import { useCurrentSession }  from '../hooks/useCurrentSession';
 import { useProfileStore }    from '../hooks/useProfileStore';
 import { useProgramData } from '../hooks/useProgramData';
-import { addSchedule, deleteSchedule, switchSchedule, DEFAULT_SCHEDULE_ID } from '../lib/schedules';
+import { addSchedule, deleteSchedule, switchSchedule, renameSchedule } from '../lib/schedules';
 import { useToast }           from '../hooks/useToast';
 import { ToastStack }         from '../components/Toast';
 import { ConfirmDialog }      from '../components/ConfirmDialog';
@@ -130,6 +130,8 @@ export function Settings() {
   const [newProfileName, setNewProfileName] = useState('');
   const [showNewProfile, setShowNewProfile] = useState(false);
   const [scheduleToDelete, setScheduleToDelete] = useState<{ id: string; name: string } | null>(null);
+  const [renamingId, setRenamingId] = useState<string | null>(null);
+  const [renameValue, setRenameValue] = useState('');
 
   // ── Export ────────────────────────────────────────────────────────────────────
   function handleExport() {
@@ -324,29 +326,66 @@ export function Settings() {
           </p>
 
           {/* Lista schede */}
-          {[{ id: DEFAULT_SCHEDULE_ID, name: 'Predefinita' }, ...program.schedules.map(s => ({ id: s.id, name: s.name }))].map(sch => {
-            const isActive  = sch.id === program.activeScheduleId;
-            const isDefault = sch.id === DEFAULT_SCHEDULE_ID;
+          {program.schedules.length === 0 && (
+            <div className="px-4 py-3 sl-panel rounded-2xl">
+              <p className="text-xs text-slate-400">
+                Nessuna scheda. Carica un file Excel qui sotto per iniziare.
+              </p>
+            </div>
+          )}
+          {program.schedules.map(sch => {
+            const isActive   = sch.id === program.activeScheduleId;
+            const isRenaming = renamingId === sch.id;
             return (
               <div key={sch.id} className={[
-                'flex items-center gap-3 px-4 py-3.5 rounded-2xl border',
+                'flex items-center gap-2 px-4 py-3 rounded-2xl border',
                 isActive
                   ? 'bg-[rgba(139,92,255,0.12)] border-[var(--sl-violet)] shadow-[0_0_12px_var(--sl-glow-violet)]'
                   : 'sl-panel',
               ].join(' ')}>
-                <FileSpreadsheet size={16} className={isActive ? 'text-[var(--sl-violet-soft)]' : 'text-[var(--sl-text-dim)]'} />
-                <span className="flex-1 text-sm font-semibold text-slate-100">{sch.name}</span>
-                {isActive
-                  ? <span className="sl-label text-[9px] text-[var(--sl-violet-soft)]">attiva</span>
-                  : <button onClick={() => switchSchedule(sch.id)} className="text-xs text-[var(--sl-cyan)] underline min-h-[44px] px-2">Attiva</button>}
-                {!isDefault && (
-                  <button
-                    onClick={() => setScheduleToDelete({ id: sch.id, name: sch.name })}
-                    aria-label="Elimina scheda"
-                    className="w-9 h-9 flex items-center justify-center rounded-lg text-slate-500 active:text-rose-300 active:bg-rose-900/40"
-                  >
-                    <Trash2 size={15} />
-                  </button>
+                <FileSpreadsheet size={16} className={isActive ? 'text-[var(--sl-violet-soft)] shrink-0' : 'text-[var(--sl-text-dim)] shrink-0'} />
+
+                {isRenaming ? (
+                  <>
+                    <input
+                      autoFocus
+                      value={renameValue}
+                      onChange={e => setRenameValue(e.target.value)}
+                      onKeyDown={e => {
+                        if (e.key === 'Enter' && renameValue.trim()) renameSchedule(sch.id, renameValue);
+                        if (e.key === 'Escape') setRenamingId(null);
+                      }}
+                      maxLength={40}
+                      className="flex-1 min-w-0 bg-[rgba(6,10,20,0.85)] border border-[var(--sl-line)] rounded-lg px-2 py-1.5 text-sm text-slate-100 focus:outline-none focus:border-[var(--sl-cyan)]"
+                    />
+                    <button onClick={() => { if (renameValue.trim()) renameSchedule(sch.id, renameValue); }} aria-label="Conferma" className="w-9 h-9 flex items-center justify-center rounded-lg bg-[var(--sl-cyan)] text-[#06121e] shrink-0">
+                      <Check size={16} strokeWidth={3} />
+                    </button>
+                    <button onClick={() => setRenamingId(null)} aria-label="Annulla" className="w-9 h-9 flex items-center justify-center rounded-lg text-[var(--sl-text-dim)] border border-[var(--sl-line)] shrink-0">
+                      <X size={16} />
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <span className="flex-1 min-w-0 text-sm font-semibold text-slate-100 truncate">{sch.name}</span>
+                    {isActive
+                      ? <span className="sl-label text-[9px] text-[var(--sl-violet-soft)] shrink-0">attiva</span>
+                      : <button onClick={() => switchSchedule(sch.id)} className="text-xs text-[var(--sl-cyan)] underline min-h-[44px] px-1 shrink-0">Attiva</button>}
+                    <button
+                      onClick={() => { setRenamingId(sch.id); setRenameValue(sch.name); }}
+                      aria-label="Rinomina scheda"
+                      className="w-9 h-9 flex items-center justify-center rounded-lg text-slate-500 active:text-[var(--sl-cyan-soft)] active:bg-[rgba(56,225,255,0.12)] shrink-0"
+                    >
+                      <Pencil size={14} />
+                    </button>
+                    <button
+                      onClick={() => setScheduleToDelete({ id: sch.id, name: sch.name })}
+                      aria-label="Elimina scheda"
+                      className="w-9 h-9 flex items-center justify-center rounded-lg text-slate-500 active:text-rose-300 active:bg-rose-900/40 shrink-0"
+                    >
+                      <Trash2 size={15} />
+                    </button>
+                  </>
                 )}
               </div>
             );

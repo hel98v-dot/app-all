@@ -7,6 +7,7 @@ import { useState }                        from 'react';
 import { CheckCircle2, ChevronRight, Circle, Trash2, AlertCircle, Repeat2, Link2 } from 'lucide-react';
 import type { Exercise, Muscle }           from '../data/program';
 import type { ExerciseLog }                from '../types';
+import { doneSets }                        from '../lib/completion';
 
 // ── Colori badge muscolo ──────────────────────────────────────────────────────
 const MUSCLE_COLORS: Record<Muscle, string> = {
@@ -41,7 +42,7 @@ interface ExerciseCardProps {
 export function ExerciseCard({ exercise, log, onClick, onReset, onSwap, isSwapped, onSuperset }: ExerciseCardProps) {
   const [confirmReset, setConfirmReset] = useState(false);
 
-  const setsLogged = log?.sets.length ?? 0;
+  const setsLogged = log ? doneSets(log) : 0;
   const isDone     = setsLogged >= exercise.prescribedSets;
   const hasPartial = setsLogged > 0 && !isDone;
   const hasLog     = setsLogged > 0;
@@ -79,7 +80,9 @@ export function ExerciseCard({ exercise, log, onClick, onReset, onSwap, isSwappe
             ? 'border bg-rose-950/50 border-rose-700/60'
             : isDone
               ? 'border bg-emerald-950/45 border-emerald-600/50 shadow-[0_0_16px_rgba(16,185,129,0.12)]'
-              : 'sl-panel',
+              : hasPartial
+                ? 'border bg-amber-950/40 border-amber-600/50 shadow-[0_0_16px_rgba(245,200,16,0.10)]'
+                : 'sl-panel',
           // Spazio a destra per i bottoni azione (swap / superset / reset)
           (hasLog || onSwap || onSuperset) ? 'pr-14' : '',
         ].join(' ')}
@@ -89,7 +92,7 @@ export function ExerciseCard({ exercise, log, onClick, onReset, onSwap, isSwappe
           {isDone ? (
             <CheckCircle2 size={26} className="text-emerald-400" strokeWidth={2} />
           ) : hasPartial ? (
-            <Circle size={26} className="text-[var(--sl-cyan)]" strokeWidth={2} />
+            <Circle size={26} className="text-amber-400" strokeWidth={2} />
           ) : (
             <Circle size={26} className="text-slate-600" strokeWidth={1.75} />
           )}
@@ -142,7 +145,7 @@ export function ExerciseCard({ exercise, log, onClick, onReset, onSwap, isSwappe
           {setsLogged > 0 && (
             <span className={[
               'text-[15px] font-bold tabular-nums',
-              confirmReset ? 'text-rose-400' : isDone ? 'text-emerald-400' : 'text-[var(--sl-cyan)]',
+              confirmReset ? 'text-rose-400' : isDone ? 'text-emerald-400' : 'text-amber-400',
             ].join(' ')}>
               {setsLogged}/{exercise.prescribedSets}
             </span>

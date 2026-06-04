@@ -74,7 +74,7 @@ export function SupersetLogger() {
   const program = useProgramData();
   const { getExerciseLog, getSessionLog, saveSessionLog, getAllSessionLogs } = useLogStore();
   const restTimer = useRestTimer();
-  const { toasts, show } = useToast();
+  const { toasts } = useToast();
   const [autoRest] = usePref('autoRest');
   const autoRestTimer = useAutoRest();
   const restedSets = useRef<Set<string>>(new Set());
@@ -171,17 +171,8 @@ export function SupersetLogger() {
     if ('vibrate' in navigator) navigator.vibrate(20);
   }
 
-  const canSave = found.some(ex => (setsMap[ex.id] ?? []).some(s => s.reps > 0));
   const totalVolume = found.reduce((acc, ex) =>
     acc + (setsMap[ex.id] ?? []).reduce((a, s) => a + s.reps * s.kg, 0), 0);
-
-  function handleSave() {
-    if (!canSave) return;
-    persistAll();
-    if ('vibrate' in navigator) navigator.vibrate(50);
-    show('Superset salvato ✓', 'ok');
-    setTimeout(() => navigate('/'), 700);
-  }
 
   const isMeters = (ex: Exercise) => ex.metric === 'meters';
 
@@ -242,12 +233,12 @@ export function SupersetLogger() {
                   </div>
                   <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
                     <div className="flex items-center gap-2">
-                      <span className="w-9 text-[10px] uppercase tracking-wide text-slate-500">{isMeters(ex) ? 'metri' : 'reps'}</span>
-                      <MiniStepper value={s.reps} step={1} min={0} onChange={v => updateSet(ex.id, r, 'reps', v)} />
-                    </div>
-                    <div className="flex items-center gap-2">
                       <span className="w-6 text-[10px] uppercase tracking-wide text-slate-500">kg</span>
                       <MiniStepper value={s.kg} step={2.5} min={0} onChange={v => updateSet(ex.id, r, 'kg', v)} />
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="w-9 text-[10px] uppercase tracking-wide text-slate-500">{isMeters(ex) ? 'metri' : 'reps'}</span>
+                      <MiniStepper value={s.reps} step={1} min={0} onChange={v => updateSet(ex.id, r, 'reps', v)} />
                     </div>
                   </div>
                   {lastSet && (lastSet.reps > 0 || lastSet.kg > 0) && (
@@ -271,16 +262,11 @@ export function SupersetLogger() {
           </div>
         )}
 
-        <div className="sticky bottom-3 z-10 pt-4 -mb-1 bg-gradient-to-t from-[var(--sl-bg)] via-[var(--sl-bg)]/85 to-transparent">
-          <button
-            onClick={handleSave}
-            disabled={!canSave}
-            className="sl-btn w-full flex items-center justify-center gap-2 py-4 rounded-2xl text-base min-h-[56px]"
-          >
-            <Check size={20} strokeWidth={2.5} />
-            {canSave ? 'Salva superset' : 'Inserisci almeno 1 serie'}
-          </button>
-        </div>
+        {/* Salvataggio automatico */}
+        <p className="flex items-center justify-center gap-1.5 text-xs text-[var(--sl-text-dim)] pt-2">
+          <Check size={13} strokeWidth={2.5} className="text-emerald-400" />
+          Salvataggio automatico
+        </p>
       </div>
 
       <ToastStack toasts={toasts} />
