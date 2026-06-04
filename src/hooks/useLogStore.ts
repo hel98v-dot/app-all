@@ -6,6 +6,7 @@
 import { useCallback, useState } from 'react';
 import type { ExerciseLog, LogStore, SessionLog } from '../types';
 import { logKey } from './useProfileStore';
+import { getActiveScheduleId } from '../lib/schedules';
 import { today } from '../lib/dates';
 
 // -------------------------------------------------------------------
@@ -254,6 +255,7 @@ export function useLogStore(): UseLogStoreReturn {
         sessionId,
         date: dateISO,
         exercises: [],
+        scheduleId: getActiveScheduleId(),
       };
 
       // Upsert dell'esercizio nell'array exercises

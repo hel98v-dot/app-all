@@ -22,6 +22,8 @@ export type SessionLog = {
   sessionId: string;
   date: string;          // YYYY-MM-DD
   exercises: ExerciseLog[];
+  /** Scheda di appartenenza (per separare esercizi e volume tra schede). */
+  scheduleId?: string;
 };
 
 /** Struttura del localStorage per i log (chiave: "training-log-v1-{profileId}"). */

@@ -9,7 +9,8 @@ import { usePref }            from '../lib/prefs';
 import { useLogStore }        from '../hooks/useLogStore';
 import { useCurrentSession }  from '../hooks/useCurrentSession';
 import { useProfileStore }    from '../hooks/useProfileStore';
-import { useProgramData, saveCustomProgram, clearCustomProgram } from '../hooks/useProgramData';
+import { useProgramData } from '../hooks/useProgramData';
+import { addSchedule, deleteSchedule, switchSchedule, DEFAULT_SCHEDULE_ID } from '../lib/schedules';
 import { useToast }           from '../hooks/useToast';
 import { ToastStack }         from '../components/Toast';
 import { ConfirmDialog }      from '../components/ConfirmDialog';
@@ -128,6 +129,7 @@ export function Settings() {
   const [dialog, setDialog] = useState<'reset-meso' | 'reset-all' | 'del-profile' | null>(null);
   const [newProfileName, setNewProfileName] = useState('');
   const [showNewProfile, setShowNewProfile] = useState(false);
+  const [scheduleToDelete, setScheduleToDelete] = useState<{ id: string; name: string } | null>(null);
 
   // ── Export ────────────────────────────────────────────────────────────────────
   function handleExport() {
@@ -164,12 +166,12 @@ export function Settings() {
   function handleExcelImport(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
+    const scheduleName = file.name.replace(/\.[^.]+$/, '').slice(0, 40) || 'Nuova scheda';
     excelLib()
       .then(({ parseScheduleFile }) => parseScheduleFile(file))
-      .then(({ sessions, warnings }) => {
-        saveCustomProgram(sessions);
-        if (warnings.length) show(`Importato con avvisi: ${warnings[0]}`, 'ok');
-        else show(`Scheda importata: ${sessions.length} sessioni ✓`, 'ok');
+      .then(({ sessions }) => {
+        // Aggiunge una NUOVA scheda (non sostituisce) e la attiva (con reload)
+        addSchedule(scheduleName, sessions);
       })
       .catch(err => show(`Errore importazione: ${String(err)}`, 'err'));
     e.target.value = '';
@@ -314,41 +316,53 @@ export function Settings() {
           </p>
         </Section>
 
-        {/* ── Scheda Allenamento (Excel) ─────────────────────────────────────── */}
-        <Section title="Scheda Allenamento">
+        {/* ── Schede di allenamento (Excel) ──────────────────────────────────── */}
+        <Section title="Schede di allenamento">
+          <p className="text-xs text-[var(--sl-text-dim)] px-1 -mt-1">
+            Più schede per profilo. Esercizi e volume seguono la scheda attiva;
+            Status, peso e achievement restano cumulativi.
+          </p>
 
-          {program.isCustom && (
-            <div className="flex items-center gap-3 px-4 py-3 bg-emerald-950/40 border border-emerald-700/40 rounded-2xl">
-              <FileSpreadsheet size={16} className="text-emerald-400 shrink-0" />
-              <span className="text-sm text-emerald-300 flex-1">Scheda personalizzata caricata</span>
-              <button
-                onClick={() => { clearCustomProgram(); }}
-                className="text-xs text-rose-400 underline min-h-[44px] px-2"
-              >
-                Rimuovi
-              </button>
-            </div>
-          )}
+          {/* Lista schede */}
+          {[{ id: DEFAULT_SCHEDULE_ID, name: 'Predefinita' }, ...program.schedules.map(s => ({ id: s.id, name: s.name }))].map(sch => {
+            const isActive  = sch.id === program.activeScheduleId;
+            const isDefault = sch.id === DEFAULT_SCHEDULE_ID;
+            return (
+              <div key={sch.id} className={[
+                'flex items-center gap-3 px-4 py-3.5 rounded-2xl border',
+                isActive
+                  ? 'bg-[rgba(139,92,255,0.12)] border-[var(--sl-violet)] shadow-[0_0_12px_var(--sl-glow-violet)]'
+                  : 'sl-panel',
+              ].join(' ')}>
+                <FileSpreadsheet size={16} className={isActive ? 'text-[var(--sl-violet-soft)]' : 'text-[var(--sl-text-dim)]'} />
+                <span className="flex-1 text-sm font-semibold text-slate-100">{sch.name}</span>
+                {isActive
+                  ? <span className="sl-label text-[9px] text-[var(--sl-violet-soft)]">attiva</span>
+                  : <button onClick={() => switchSchedule(sch.id)} className="text-xs text-[var(--sl-cyan)] underline min-h-[44px] px-2">Attiva</button>}
+                {!isDefault && (
+                  <button
+                    onClick={() => setScheduleToDelete({ id: sch.id, name: sch.name })}
+                    aria-label="Elimina scheda"
+                    className="w-9 h-9 flex items-center justify-center rounded-lg text-slate-500 active:text-rose-300 active:bg-rose-900/40"
+                  >
+                    <Trash2 size={15} />
+                  </button>
+                )}
+              </div>
+            );
+          })}
 
-          {!program.isCustom && (
-            <div className="px-4 py-3 sl-panel rounded-2xl">
-              <p className="text-xs text-slate-400">
-                Stai usando la scheda di default. Carica il tuo file Excel per usare esercizi personalizzati.
-              </p>
-            </div>
-          )}
-
+          <ActionRow
+            icon={<Upload size={18} className="text-indigo-400 shrink-0" />}
+            label="Aggiungi scheda (.xlsx)"
+            sublabel="Carica un nuovo file: diventa la scheda attiva"
+            onClick={() => excelImportRef.current?.click()}
+          />
           <ActionRow
             icon={<Download size={18} className="text-indigo-400 shrink-0" />}
             label="Scarica template Excel"
             sublabel="Compilalo con i tuoi esercizi"
             onClick={() => excelLib().then(({ downloadTemplate }) => downloadTemplate())}
-          />
-          <ActionRow
-            icon={<Upload size={18} className="text-indigo-400 shrink-0" />}
-            label="Carica scheda (.xlsx)"
-            sublabel={program.isCustom ? 'Sostituisce la scheda attuale' : 'Carica il tuo file compilato'}
-            onClick={() => excelImportRef.current?.click()}
           />
           <ActionRow
             icon={<FileSpreadsheet size={18} className="text-emerald-400 shrink-0" />}
@@ -486,6 +500,16 @@ export function Settings() {
           if (activeProfile) deleteProfile(activeProfile.id);
         }}
         onCancel={() => setDialog(null)}
+      />
+
+      <ConfirmDialog
+        open={scheduleToDelete !== null}
+        title={`Eliminare la scheda "${scheduleToDelete?.name}"?`}
+        description="La scheda viene rimossa. I log restano nello storico ma il loro volume non sarà più mostrato in Volume."
+        confirmLabel="Elimina scheda"
+        danger
+        onConfirm={() => { if (scheduleToDelete) deleteSchedule(scheduleToDelete.id); }}
+        onCancel={() => setScheduleToDelete(null)}
       />
 
       <ConfirmDialog

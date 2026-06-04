@@ -18,6 +18,7 @@ import { ToastStack }     from '../components/Toast';
 import { today }          from '../lib/dates';
 import { timerRestSeconds, formatClock } from '../lib/restTime';
 import { lastPerformance } from '../lib/records';
+import { getActiveScheduleId } from '../lib/schedules';
 import type { Exercise }  from '../data/program';
 import type { ExerciseLog, SetLog } from '../types';
 
@@ -112,7 +113,8 @@ export function SupersetLogger() {
   function persistAll(): void {
     const existing = getSessionLog(weekNumber, sid, dateISO);
     const base = existing ?? {
-      id: crypto.randomUUID(), weekNumber, sessionId: sid, date: dateISO, exercises: [] as ExerciseLog[],
+      id: crypto.randomUUID(), weekNumber, sessionId: sid, date: dateISO,
+      exercises: [] as ExerciseLog[], scheduleId: getActiveScheduleId(),
     };
     let exercises = [...base.exercises];
     for (const ex of found) {

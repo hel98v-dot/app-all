@@ -16,6 +16,7 @@ import { SwapPicker }         from '../components/SwapPicker';
 import { SupersetPicker }     from '../components/SupersetPicker';
 import { SupersetCard }       from '../components/SupersetCard';
 import { sessionCode }        from '../lib/sessionLabel';
+import { switchSchedule }     from '../lib/schedules';
 import { formatDisplay }      from '../lib/dates';
 
 interface SwapTarget {
@@ -140,6 +141,32 @@ export function Today() {
         <p className="sl-label text-[10px] text-[var(--sl-cyan)] sl-glow-text">▣ Missione Giornaliera</p>
         <h1 className="sl-heading text-2xl mt-1">{formatDisplay(dateISO)}</h1>
       </div>
+
+      {/* Selettore scheda (solo se ci sono schede custom) */}
+      {program.schedules.length > 0 && (
+        <div className="space-y-1.5">
+          <p className="text-[11px] font-semibold uppercase tracking-widest text-slate-500">Scheda</p>
+          <div className="flex gap-1.5 flex-wrap">
+            {[{ id: 'default', name: 'Predefinita' }, ...program.schedules.map(s => ({ id: s.id, name: s.name }))].map(sch => {
+              const isActive = sch.id === program.activeScheduleId;
+              return (
+                <button
+                  key={sch.id}
+                  onClick={() => { if (!isActive) switchSchedule(sch.id); }}
+                  className={[
+                    'px-3 py-2 rounded-xl border text-xs font-bold min-h-[44px] transition-colors',
+                    isActive
+                      ? 'bg-[var(--sl-violet)] border-[var(--sl-violet-soft)] text-white shadow-[0_0_12px_var(--sl-glow-violet)]'
+                      : 'bg-[rgba(56,225,255,0.05)] border-[var(--sl-line-soft)] text-[var(--sl-text-dim)] active:bg-[rgba(56,225,255,0.12)]',
+                  ].join(' ')}
+                >
+                  {sch.name}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Picker settimana */}
       <div className="space-y-1.5">

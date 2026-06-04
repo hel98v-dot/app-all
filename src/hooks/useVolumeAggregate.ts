@@ -5,6 +5,7 @@ import { useDeferredValue, useMemo } from 'react';
 import { MUSCLES, type Muscle } from '../data/program';
 import { useLogStore }     from './useLogStore';
 import { useProgramData }  from './useProgramData';
+import { DEFAULT_SCHEDULE_ID } from '../lib/schedules';
 import type { SessionLog } from '../types';
 
 // ── Tipi pubblici ──────────────────────────────────────────────────────────────
@@ -75,10 +76,15 @@ export function useVolumeAggregate(): VolumeAggregateWithStale {
   const deferred    = useDeferredValue(store.sessions);
   const isStale     = deferred !== store.sessions;
 
+  const activeId = program.activeScheduleId;
   const result = useMemo(
-    () => buildAggregate(deferred, program.getMuscleMap()),
+    () => {
+      // Il Volume segue la SCHEDA ATTIVA: tieni solo i log della scheda corrente.
+      const filtered = deferred.filter(s => (s.scheduleId ?? DEFAULT_SCHEDULE_ID) === activeId);
+      return buildAggregate(filtered, program.getMuscleMap());
+    },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [deferred],
+    [deferred, activeId],
   );
 
   return { ...result, isStale };

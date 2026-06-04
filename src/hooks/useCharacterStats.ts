@@ -159,7 +159,8 @@ export function useCharacterStats(): CharacterStatsWithStale {
   const deferred   = useDeferredValue(store.sessions);
   const isStale    = deferred !== store.sessions;
   const stats      = useMemo(
-    () => buildStats(deferred, program.baseSessions, program.getMuscleMap()),
+    // Cumulativo: considera TUTTE le schede (default + custom) e tutti i log.
+    () => buildStats(deferred, program.allBaseSessions(), program.getAllMuscleMap()),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [deferred],
   );

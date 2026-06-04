@@ -1,7 +1,6 @@
 // src/hooks/useProgramData.ts
-// Restituisce il programma attivo per il profilo corrente.
-// Se il profilo ha caricato una scheda Excel, usa quella.
-// Altrimenti usa il programma statico di default (program.ts).
+// Restituisce il programma della SCHEDA ATTIVA per il profilo corrente.
+// Espone anche l'unione di tutte le schede (per le statistiche cumulative).
 
 import { useMemo } from 'react';
 import {
@@ -15,58 +14,7 @@ import {
   type Session,
   type Week,
 } from '../data/program';
-import { customProgramKey } from './useProfileStore';
-import { seedSupersetsFromProgram } from './useSupersets';
-import { repairRange } from '../lib/excelRange';
-
-// ── Legge il programma custom da localStorage ──────────────────────────────
-
-function getActiveProfileId(): string {
-  try {
-    const raw = localStorage.getItem('profiles-v1');
-    if (raw) {
-      const s = JSON.parse(raw) as { activeId?: string };
-      if (s.activeId) return s.activeId;
-    }
-  } catch { /* ignore */ }
-  return 'default';
-}
-
-/** Ripara reps/RPE salvati come seriali-data Excel (es. "46303" → "8-10"). */
-export function repairSessions(sessions: Session[]): Session[] {
-  return sessions.map(s => ({
-    ...s,
-    exercises: s.exercises.map(e => ({
-      ...e,
-      repsTarget: repairRange(e.repsTarget),
-      rpeTarget:  repairRange(e.rpeTarget),
-    })),
-  }));
-}
-
-function readCustomSessions(): Session[] | null {
-  try {
-    const raw = localStorage.getItem(customProgramKey(getActiveProfileId()));
-    if (!raw) return null;
-    const parsed = JSON.parse(raw) as Session[];
-    if (Array.isArray(parsed) && parsed.length > 0) return repairSessions(parsed);
-  } catch { /* ignore */ }
-  return null;
-}
-
-/** Salva un programma custom per il profilo attivo. */
-export function saveCustomProgram(sessions: Session[]): void {
-  localStorage.setItem(customProgramKey(getActiveProfileId()), JSON.stringify(sessions));
-  // Pre-abbina i superset definiti nella scheda (colonna Superset)
-  seedSupersetsFromProgram(sessions);
-  window.location.reload();
-}
-
-/** Rimuove il programma custom (torna al default). */
-export function clearCustomProgram(): void {
-  localStorage.removeItem(customProgramKey(getActiveProfileId()));
-  window.location.reload();
-}
+import { readSchedules, getActiveSessions, type StoredSchedule } from '../lib/schedules';
 
 // ── Genera le 5 settimane da un set di sessioni (come program.ts) ──────────
 
@@ -107,20 +55,36 @@ export interface ProgramData {
   getSession:    (weekNumber: number, day: DayKey) => Session | undefined;
   getWeek:       (weekNumber: number) => Week | undefined;
   findExercise:  (weekNumber: number, exerciseId: string) => { session: Session; exercise: Exercise } | undefined;
+  /** Cerca un esercizio in TUTTE le schede (per lo storico cross-scheda). */
+  findExerciseById: (exerciseId: string) => { session: Session; exercise: Exercise } | undefined;
   getMuscleMap:  () => Record<string, Muscle>;
   getDayKey:     () => DayKey;
+  // ── Multi-scheda ──
+  /** Schede custom del profilo (oltre al programma di default). */
+  schedules:        StoredSchedule[];
+  /** Id della scheda attiva ('default' = programma built-in). */
+  activeScheduleId: string;
+  /** Unione delle sessioni (default + tutte le schede) per le stat cumulative. */
+  allBaseSessions:  () => Session[];
+  /** Mappa id→muscolo unione di tutte le schede. */
+  getAllMuscleMap:  () => Record<string, Muscle>;
 }
 
 // ── Hook ──────────────────────────────────────────────────────────────────
 
 export function useProgramData(): ProgramData {
   return useMemo(() => {
-    const custom = readCustomSessions();
-    const isCustom = custom !== null;
-    const sessions = custom ?? BASE_SESSIONS;
+    const sched    = readSchedules();
+    const active   = getActiveSessions();      // null = default built-in
+    const isCustom = active !== null;
+    const sessions = active ?? BASE_SESSIONS;
     const weeks    = isCustom ? makeWeeks(sessions) : WEEKS;
-
     const muscleMap = isCustom ? buildMuscleMap(sessions) : getDefaultMuscleMap();
+
+    // Unione default + tutte le schede (per Personaggio, achievement, ecc.)
+    const allSessions: Session[] = [...BASE_SESSIONS];
+    for (const s of sched.list) allSessions.push(...s.sessions);
+    const allMuscleMap = { ...getDefaultMuscleMap(), ...buildMuscleMap(allSessions) };
 
     function getSession(weekNumber: number, day: DayKey): Session | undefined {
       const wk = weeks.find(w => w.number === weekNumber);
@@ -144,6 +108,16 @@ export function useProgramData(): ProgramData {
       return undefined;
     }
 
+    function findExerciseById(
+      exerciseId: string,
+    ): { session: Session; exercise: Exercise } | undefined {
+      for (const session of allSessions) {
+        const exercise = session.exercises.find(e => e.id === exerciseId);
+        if (exercise) return { session, exercise };
+      }
+      return undefined;
+    }
+
     function getDayKey(): DayKey {
       return getDayKeyFromDate(new Date());
     }
@@ -155,8 +129,13 @@ export function useProgramData(): ProgramData {
       getSession,
       getWeek,
       findExercise,
+      findExerciseById,
       getMuscleMap: () => muscleMap,
       getDayKey,
+      schedules: sched.list,
+      activeScheduleId: sched.activeId,
+      allBaseSessions: () => allSessions,
+      getAllMuscleMap: () => allMuscleMap,
     };
   }, []);
 }

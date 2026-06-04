@@ -306,7 +306,7 @@ export function History() {
 
       {/* Gruppi settimana */}
       {groups.map(g => (
-        <WeekSection key={g.weekNumber} group={g} findEx={program.findExercise} />
+        <WeekSection key={g.weekNumber} group={g} findEx={(_wk, id) => program.findExerciseById(id)} />
       ))}
     </div>
   );
