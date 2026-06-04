@@ -13,6 +13,7 @@ import { BodyweightCard } from '../components/BodyweightCard';
 import { MeasurementCard } from '../components/MeasurementCard';
 import { CelebrationOverlay } from '../components/CelebrationOverlay';
 import { useCharacterCelebration } from '../hooks/useCharacterCelebration';
+import { WeeklyQuests } from '../components/WeeklyQuests';
 
 // ── Colori tema ───────────────────────────────────────────────────────────────
 
@@ -374,6 +375,9 @@ export function Character() {
           />
         ))}
       </div>
+
+      {/* ── Quest settimanali ────────────────────────────────────────────────── */}
+      <WeeklyQuests />
 
       {/* ── Corpo ────────────────────────────────────────────────────────────── */}
       <div className="space-y-3 pt-1">

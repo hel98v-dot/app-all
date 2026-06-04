@@ -6,6 +6,7 @@ import { BarChart3, Info } from 'lucide-react';
 import { type Muscle } from '../data/program';
 import { useVolumeAggregate, pctChange, type VolumePerWeek, type VolumePerMuscleAndWeek } from '../hooks/useVolumeAggregate';
 import { Sparkline }           from '../components/Sparkline';
+import { BodyHeatmap }         from '../components/BodyHeatmap';
 
 // ── Configurazione ─────────────────────────────────────────────────────────────
 
@@ -329,12 +330,83 @@ function TrendSection({ volumePerMuscleAndWeek, volumePerWeek }: TableProps) {
   );
 }
 
+// ── Sezione 5: Mappa muscolare (heatmap) ──────────────────────────────────────
+
+type MapPeriod = 'all' | 1 | 2 | 3 | 4 | 5;
+
+function MapSection({ volumePerMuscleAndWeek }: { volumePerMuscleAndWeek: VolumePerMuscleAndWeek }) {
+  const [period, setPeriod] = useState<MapPeriod>('all');
+
+  // Volume per muscolo nel periodo scelto (somma su tutte le settimane se 'all')
+  const volumeByMuscle = Object.fromEntries(
+    MUSCLE_ORDER.map(m => {
+      const perWeek = volumePerMuscleAndWeek[m];
+      const v = period === 'all'
+        ? WEEKS.reduce((acc, wk) => acc + (perWeek[wk] ?? 0), 0)
+        : (perWeek[period] ?? 0);
+      return [m, v];
+    }),
+  ) as Record<Muscle, number>;
+
+  // Classifica decrescente (solo muscoli con volume) per la legenda numerica
+  const ranked = MUSCLE_ORDER
+    .map(m => ({ m, v: volumeByMuscle[m] }))
+    .filter(x => x.v > 0)
+    .sort((a, b) => b.v - a.v);
+
+  const PERIODS: { id: MapPeriod; label: string }[] = [
+    { id: 'all', label: 'Tutte' },
+    ...WEEKS.map(n => ({ id: n as MapPeriod, label: `S${n}` })),
+  ];
+
+  return (
+    <>
+      <SectionHeader title="Mappa muscolare" subtitle="Dove si concentra il volume" />
+
+      {/* Selettore periodo */}
+      <div className="flex gap-1 bg-[rgba(56,225,255,0.06)] rounded-xl p-1 mb-3">
+        {PERIODS.map(p => (
+          <button
+            key={String(p.id)}
+            onClick={() => setPeriod(p.id)}
+            className={[
+              'flex-1 py-1.5 rounded-lg text-xs font-semibold transition-colors sl-label text-[10px]',
+              period === p.id
+                ? 'bg-[var(--sl-cyan)] text-[#06121e] shadow-[0_0_14px_var(--sl-glow)]'
+                : 'text-[var(--sl-text-dim)] active:text-slate-200',
+            ].join(' ')}
+          >
+            {p.label}
+          </button>
+        ))}
+      </div>
+
+      <BodyHeatmap volumeByMuscle={volumeByMuscle} />
+
+      {/* Classifica numerica */}
+      {ranked.length > 0 ? (
+        <div className="mt-4 space-y-1.5">
+          {ranked.map(({ m, v }) => (
+            <div key={m} className="flex items-center gap-2">
+              <span className="w-24 text-xs font-medium text-slate-300 shrink-0">{m}</span>
+              <span className="flex-1 text-right text-xs font-bold text-slate-200 tabular-nums">{fmtVol(v)}</span>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <p className="mt-4 text-xs text-[var(--sl-text-dim)] text-center">Nessun dato per questo periodo.</p>
+      )}
+    </>
+  );
+}
+
 // ── Navigazione sezioni ───────────────────────────────────────────────────────
 
-type TabId = 'trend' | 'assoluto' | 'wow' | 'vs1';
+type TabId = 'trend' | 'mappa' | 'assoluto' | 'wow' | 'vs1';
 
 const TABS: { id: TabId; label: string }[] = [
   { id: 'trend',    label: 'Trend'    },
+  { id: 'mappa',    label: 'Mappa'    },
   { id: 'assoluto', label: 'Assoluto' },
   { id: 'wow',      label: 'WoW %'    },
   { id: 'vs1',      label: 'vs Sett 1'},
@@ -395,6 +467,7 @@ export function Volume() {
       <div className="sl-panel rounded-2xl overflow-hidden">
         <div className="p-3">
           {tab === 'trend'    && <TrendSection  {...tableProps} />}
+          {tab === 'mappa'    && <MapSection    volumePerMuscleAndWeek={volumePerMuscleAndWeek} />}
           {tab === 'assoluto' && <AbsoluteTable {...tableProps} />}
           {tab === 'wow'      && <WoWTable      {...tableProps} />}
           {tab === 'vs1'      && <VsWeek1Table  {...tableProps} />}
