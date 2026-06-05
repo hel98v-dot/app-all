@@ -4,7 +4,7 @@
 // così non serve aprire/chiudere di continuo i due esercizi.
 
 import { useEffect, useRef, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { ArrowLeft, Check, Info, Timer, Link2 } from 'lucide-react';
 
 import { useProgramData } from '../hooks/useProgramData';
@@ -71,6 +71,7 @@ function initSets(ex: Exercise, existing: ExerciseLog | undefined, lastSets: Set
 export function SupersetLogger() {
   const { weekNumber: wkStr, sessionId, ids } = useParams<{ weekNumber: string; sessionId: string; ids: string }>();
   const navigate = useNavigate();
+  const location = useLocation();
   const program = useProgramData();
   const { getExerciseLog, getSessionLog, saveSessionLog, getAllSessionLogs } = useLogStore();
   const restTimer = useRestTimer();
@@ -82,7 +83,8 @@ export function SupersetLogger() {
 
   const weekNumber = parseInt(wkStr ?? '1', 10);
   const sid = sessionId ?? '';
-  const dateISO = today();
+  // Usa la data passata da Today (il giorno effettivo del log), altrimenti oggi.
+  const dateISO = (location.state as { date?: string } | null)?.date ?? today();
   const exIds = (ids ?? '').split(',').filter(Boolean);
 
   const found: Exercise[] = exIds

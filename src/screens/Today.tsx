@@ -95,6 +95,20 @@ export function Today() {
     return list;
   }, [program]);
 
+  // Data "attiva" per la sessione selezionata: usa la data dell'ultimo log
+  // con serie reali (reps > 0), oppure oggi se non c'è nessun dato.
+  // Risolve il caso in cui si allenava ieri e Today cercava la data di oggi.
+  const sessionDateISO = useMemo(() => {
+    const withData = getAllSessionLogs().filter(
+      s =>
+        s.weekNumber === selectedWeek &&
+        s.sessionId  === selectedSessionId &&
+        s.exercises.some(e => e.sets.some(set => set.reps > 0)),
+    );
+    if (withData.length === 0) return dateISO;
+    return withData.sort((a, b) => b.date.localeCompare(a.date))[0]!.date;
+  }, [getAllSessionLogs, selectedWeek, selectedSessionId, dateISO]);
+
   const sessionTabs = program.baseSessions.map(s => ({
     sessionId: s.id,
     code:      sessionCode(s),
@@ -117,7 +131,7 @@ export function Today() {
 
   const totalExercises = effectiveExercises.length;
   const completedCount = effectiveExercises.filter(({ effective }) => {
-    const log = getExerciseLog(selectedWeek, session!.id, dateISO, effective.id);
+    const log = getExerciseLog(selectedWeek, session!.id, sessionDateISO, effective.id);
     return log ? doneSets(log) >= effective.prescribedSets : false;
   }).length;
   const pct           = totalExercises > 0 ? Math.round((completedCount / totalExercises) * 100) : 0;
@@ -316,19 +330,19 @@ export function Today() {
                 key={`ss-${ri.a.effective.id}`}
                 a={ri.a.effective}
                 b={ri.b.effective}
-                logA={getExerciseLog(selectedWeek, session.id, dateISO, ri.a.effective.id)}
-                logB={getExerciseLog(selectedWeek, session.id, dateISO, ri.b.effective.id)}
-                onClick={() => navigate(`/superset/${selectedWeek}/${session.id}/${ri.a.effective.id},${ri.b.effective.id}`)}
+                logA={getExerciseLog(selectedWeek, session.id, sessionDateISO, ri.a.effective.id)}
+                logB={getExerciseLog(selectedWeek, session.id, sessionDateISO, ri.b.effective.id)}
+                onClick={() => navigate(`/superset/${selectedWeek}/${session.id}/${ri.a.effective.id},${ri.b.effective.id}`, { state: { date: sessionDateISO } })}
                 onUnpair={() => removePairOf(selectedWeek, session.id, ri.a.effective.id)}
               />
             ) : (
               <ExerciseCard
                 key={ri.item.original.id}
                 exercise={ri.item.effective}
-                log={getExerciseLog(selectedWeek, session.id, dateISO, ri.item.effective.id)}
+                log={getExerciseLog(selectedWeek, session.id, sessionDateISO, ri.item.effective.id)}
                 isSwapped={ri.item.isSwapped}
-                onClick={() => navigate(`/esercizio/${selectedWeek}/${session.id}/${ri.item.effective.id}`)}
-                onReset={() => clearExerciseLog(selectedWeek, session.id, dateISO, ri.item.effective.id)}
+                onClick={() => navigate(`/esercizio/${selectedWeek}/${session.id}/${ri.item.effective.id}`, { state: { date: sessionDateISO } })}
+                onReset={() => clearExerciseLog(selectedWeek, session.id, sessionDateISO, ri.item.effective.id)}
                 onSwap={() => setSwapTarget({ originalId: ri.item.original.id, effective: ri.item.effective, priorityMuscle: ri.item.original.muscle, isSwapped: ri.item.isSwapped })}
                 onSuperset={() => setSupersetTarget(ri.item.effective)}
               />

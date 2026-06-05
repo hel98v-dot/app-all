@@ -2,7 +2,7 @@
 // Route: /esercizio/:weekNumber/:sessionId/:exerciseId
 
 import { useEffect, useRef, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import {
   ArrowLeft, Check, Info, StickyNote, Timer, Plus, Trash2, Trophy, Flame,
 } from 'lucide-react';
@@ -171,6 +171,7 @@ export function ExerciseLogger() {
     exerciseId:  string;
   }>();
   const navigate = useNavigate();
+  const location = useLocation();
   const { getExerciseLog, saveExerciseLog, clearExerciseLog, getAllSessionLogs } = useLogStore();
   const { toasts, show } = useToast();
   const restTimer = useRestTimer();
@@ -183,7 +184,8 @@ export function ExerciseLogger() {
 
   const program    = useProgramData();
   const weekNumber = parseInt(wkStr ?? '1', 10);
-  const dateISO    = today();
+  // Usa la data passata da Today (il giorno effettivo del log), altrimenti oggi.
+  const dateISO    = (location.state as { date?: string } | null)?.date ?? today();
   const exId       = exerciseId ?? '';
   const sid        = sessionId ?? '';
   const found      = program.findExercise(weekNumber, exId);
