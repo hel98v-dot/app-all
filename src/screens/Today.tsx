@@ -16,7 +16,7 @@ import { SwapPicker }         from '../components/SwapPicker';
 import { SupersetPicker }     from '../components/SupersetPicker';
 import { SupersetCard }       from '../components/SupersetCard';
 import { sessionCode }        from '../lib/sessionLabel';
-import { switchSchedule }     from '../lib/schedules';
+import { switchSchedule, hasDefaultProgramData, DEFAULT_SCHEDULE_ID } from '../lib/schedules';
 import { doneSets }           from '../lib/completion';
 import { formatDisplay }      from '../lib/dates';
 
@@ -41,8 +41,18 @@ function readSelection(): { week: number; sessionId: string } | null {
 }
 
 export function Today() {
-  const { startDate, getExerciseLog, clearExerciseLog } = useLogStore();
+  const { startDate, getExerciseLog, clearExerciseLog, getAllSessionLogs } = useLogStore();
   const program = useProgramData();
+
+  // Voci del selettore scheda: "Predefinita" compare solo se ci sono dati
+  // registrati sul programma built-in (così restano sempre raggiungibili).
+  const scheduleItems = useMemo(() => {
+    const showDefault = hasDefaultProgramData(getAllSessionLogs());
+    return [
+      ...(showDefault ? [{ id: DEFAULT_SCHEDULE_ID, name: 'Predefinita' }] : []),
+      ...program.schedules.map(s => ({ id: s.id, name: s.name })),
+    ];
+  }, [getAllSessionLogs, program.schedules]);
   const { weekNumber: defaultWeek, dayKey: defaultDay, dateISO } = useCurrentSession(startDate);
 
   // Sessione di default = quella del giorno di calendario, altrimenti la prima
@@ -143,12 +153,12 @@ export function Today() {
         <h1 className="sl-heading text-2xl mt-1">{formatDisplay(dateISO)}</h1>
       </div>
 
-      {/* Selettore scheda (solo con 2+ schede) */}
-      {program.schedules.length >= 2 && (
+      {/* Selettore scheda (solo se c'è più di una voce selezionabile) */}
+      {scheduleItems.length >= 2 && (
         <div className="space-y-1.5">
           <p className="text-[11px] font-semibold uppercase tracking-widest text-slate-500">Scheda</p>
           <div className="flex gap-1.5 flex-wrap">
-            {program.schedules.map(sch => {
+            {scheduleItems.map(sch => {
               const isActive = sch.id === program.activeScheduleId;
               return (
                 <button

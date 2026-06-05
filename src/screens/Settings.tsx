@@ -10,7 +10,7 @@ import { useLogStore }        from '../hooks/useLogStore';
 import { useCurrentSession }  from '../hooks/useCurrentSession';
 import { useProfileStore }    from '../hooks/useProfileStore';
 import { useProgramData } from '../hooks/useProgramData';
-import { addSchedule, deleteSchedule, switchSchedule, renameSchedule } from '../lib/schedules';
+import { addSchedule, deleteSchedule, switchSchedule, renameSchedule, hasDefaultProgramData, DEFAULT_SCHEDULE_ID } from '../lib/schedules';
 import { useToast }           from '../hooks/useToast';
 import { ToastStack }         from '../components/Toast';
 import { ConfirmDialog }      from '../components/ConfirmDialog';
@@ -125,6 +125,9 @@ export function Settings() {
   const { profiles, activeProfile, createAndActivate, switchProfile, deleteProfile } = useProfileStore();
   const program = useProgramData();
   const [autoRest, setAutoRest] = usePref('autoRest');
+
+  // "Predefinita" compare nell'elenco solo se ha log registrati.
+  const showDefaultSchedule = hasDefaultProgramData(store.sessions);
 
   const [dialog, setDialog] = useState<'reset-meso' | 'reset-all' | 'del-profile' | null>(null);
   const [newProfileName, setNewProfileName] = useState('');
@@ -326,13 +329,34 @@ export function Settings() {
           </p>
 
           {/* Lista schede */}
-          {program.schedules.length === 0 && (
+          {program.schedules.length === 0 && !showDefaultSchedule && (
             <div className="px-4 py-3 sl-panel rounded-2xl">
               <p className="text-xs text-slate-400">
                 Nessuna scheda. Carica un file Excel qui sotto per iniziare.
               </p>
             </div>
           )}
+
+          {/* Programma predefinito — mostrato solo se ha dati registrati,
+              così quei log restano sempre raggiungibili. Non rinominabile/eliminabile. */}
+          {showDefaultSchedule && (() => {
+            const isActive = program.activeScheduleId === DEFAULT_SCHEDULE_ID;
+            return (
+              <div className={[
+                'flex items-center gap-2 px-4 py-3 rounded-2xl border',
+                isActive
+                  ? 'bg-[rgba(139,92,255,0.12)] border-[var(--sl-violet)] shadow-[0_0_12px_var(--sl-glow-violet)]'
+                  : 'sl-panel',
+              ].join(' ')}>
+                <FileSpreadsheet size={16} className={isActive ? 'text-[var(--sl-violet-soft)] shrink-0' : 'text-[var(--sl-text-dim)] shrink-0'} />
+                <span className="flex-1 min-w-0 text-sm font-semibold text-slate-100 truncate">Predefinita</span>
+                {isActive
+                  ? <span className="sl-label text-[9px] text-[var(--sl-violet-soft)] shrink-0">attiva</span>
+                  : <button onClick={() => switchSchedule(DEFAULT_SCHEDULE_ID)} className="text-xs text-[var(--sl-cyan)] underline min-h-[44px] px-1 shrink-0">Attiva</button>}
+              </div>
+            );
+          })()}
+
           {program.schedules.map(sch => {
             const isActive   = sch.id === program.activeScheduleId;
             const isRenaming = renamingId === sch.id;

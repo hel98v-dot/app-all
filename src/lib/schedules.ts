@@ -72,9 +72,12 @@ export function readSchedules(): SchedulesStore {
   const existing = readRaw(pid);
   if (existing) {
     let activeId = existing.activeId;
-    // Se esistono schede, "default" non è una scheda attiva valida: usa la prima.
-    if (existing.list.length > 0 && !existing.list.some(s => s.id === activeId)) {
-      activeId = existing.list[0]!.id;
+    // activeId valido = 'default' (programma built-in) OPPURE una scheda esistente.
+    // NB: 'default' resta sempre valido, così i log registrati sul programma
+    // predefinito non spariscono quando si carica una scheda Excel.
+    const valid = activeId === DEFAULT_SCHEDULE_ID || existing.list.some(s => s.id === activeId);
+    if (!valid) {
+      activeId = existing.list[0]?.id ?? DEFAULT_SCHEDULE_ID;
       writeRaw(pid, { ...existing, activeId });
     }
     return {
@@ -108,6 +111,20 @@ export function readSchedules(): SchedulesStore {
 
 export function getActiveScheduleId(): string {
   return readRaw(activeProfileId())?.activeId ?? DEFAULT_SCHEDULE_ID;
+}
+
+/**
+ * True se esistono log registrati sul programma PREDEFINITO (scheduleId
+ * 'default' o assente) con almeno una serie svolta. Serve a mostrare la voce
+ * "Predefinita" nel selettore così quei dati restano sempre raggiungibili.
+ */
+export function hasDefaultProgramData(
+  sessions: Array<{ scheduleId?: string; exercises: Array<{ sets: Array<{ reps: number }> }> }>,
+): boolean {
+  return sessions.some(
+    s => (s.scheduleId ?? DEFAULT_SCHEDULE_ID) === DEFAULT_SCHEDULE_ID
+      && s.exercises.some(e => e.sets.some(set => set.reps > 0)),
+  );
 }
 
 /** Sessioni della scheda attiva (null = programma di default built-in). */
