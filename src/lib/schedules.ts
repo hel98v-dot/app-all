@@ -51,6 +51,22 @@ function writeRaw(pid: string, store: SchedulesStore): void {
   try { localStorage.setItem(schedulesKey(pid), JSON.stringify(store)); } catch { /* ignore */ }
 }
 
+type RawSession = { scheduleId?: string; exercises: Array<{ sets: Array<{ reps: number }> }> };
+
+/** True se esistono log con almeno 1 serie svolta per il dato scheduleId. */
+function scheduleHasLogs(pid: string, scheduleId: string): boolean {
+  try {
+    const raw = localStorage.getItem(logKeyFor(pid));
+    if (!raw) return false;
+    const store = JSON.parse(raw) as { sessions?: RawSession[] };
+    if (!Array.isArray(store?.sessions)) return false;
+    return store.sessions.some(
+      s => (s.scheduleId ?? DEFAULT_SCHEDULE_ID) === scheduleId
+        && s.exercises.some(e => e.sets.some(set => set.reps > 0)),
+    );
+  } catch { return false; }
+}
+
 /** Tagga (una volta) i log senza scheduleId con l'id dato. */
 function migrateLogScheduleIds(pid: string, scheduleId: string): void {
   try {
@@ -80,6 +96,20 @@ export function readSchedules(): SchedulesStore {
       activeId = existing.list[0]?.id ?? DEFAULT_SCHEDULE_ID;
       writeRaw(pid, { ...existing, activeId });
     }
+
+    // Auto-recovery: se la scheda attiva è una scheda custom che NON ha log
+    // ma il programma predefinito ha dati registrati, torna a 'default'
+    // automaticamente. Questo recupera chi è rimasto bloccato su una scheda
+    // Excel vuota dopo un aggiornamento dell'app.
+    if (
+      activeId !== DEFAULT_SCHEDULE_ID &&
+      !scheduleHasLogs(pid, activeId) &&
+      scheduleHasLogs(pid, DEFAULT_SCHEDULE_ID)
+    ) {
+      activeId = DEFAULT_SCHEDULE_ID;
+      writeRaw(pid, { ...existing, activeId });
+    }
+
     return {
       activeId,
       list: existing.list.map(s => ({ ...s, sessions: repairSessions(s.sessions) })),
