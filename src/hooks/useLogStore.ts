@@ -201,10 +201,13 @@ export function useLogStore(): UseLogStoreReturn {
   // consumer) sia localStorage (persistenza).
   const [store, setStore] = useState<LogStore>(readFromStorage);
 
-  // Wrapper che aggiorna stato + storage atomicamente
+  // Wrapper che aggiorna stato + storage atomicamente.
+  // Dispatcha 'log-store-update' per notificare il DriveSync context
+  // di eseguire un push debounced verso Google Drive.
   const commit = useCallback((next: LogStore): void => {
     writeToStorage(next);
     setStore(next);
+    try { window.dispatchEvent(new CustomEvent('log-store-update')); } catch { /* ignore */ }
   }, []);
 
   // ---- Query -------------------------------------------------------

@@ -14,6 +14,7 @@ import { BackgroundsProvider } from './hooks/useBackgrounds';
 import { RestTimerProvider }   from './hooks/useRestTimer';
 import { ErrorBoundary }       from './components/ErrorBoundary';
 import { PWAAutoUpdate }        from './components/PWAAutoUpdate';
+import { DriveSyncProvider }    from './contexts/DriveSync';
 
 export default function App() {
   const { profiles, activeProfile, createAndActivate, switchProfile } = useProfileStore();
@@ -33,6 +34,7 @@ export default function App() {
 
   return (
     <BackgroundsProvider>
+      <DriveSyncProvider>
       <PWAAutoUpdate />
       <RestTimerProvider>
       <ErrorBoundary>
@@ -58,6 +60,7 @@ export default function App() {
       </BrowserRouter>
       </ErrorBoundary>
       </RestTimerProvider>
+      </DriveSyncProvider>
     </BackgroundsProvider>
   );
 }

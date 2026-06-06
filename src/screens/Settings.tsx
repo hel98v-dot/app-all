@@ -4,6 +4,7 @@ import {
   Download, Upload, RotateCcw, Trash2,
   Calendar, Info, ChevronRight,
   User, FileSpreadsheet, Plus, Check, X, Timer, Pencil,
+  CloudUpload, Wifi, WifiOff, RefreshCw, LogOut, KeyRound,
 } from 'lucide-react';
 import { usePref }            from '../lib/prefs';
 import { useLogStore }        from '../hooks/useLogStore';
@@ -16,6 +17,7 @@ import { ToastStack }         from '../components/Toast';
 import { ConfirmDialog }      from '../components/ConfirmDialog';
 import { BackgroundPicker }   from '../components/BackgroundPicker';
 import { formatDisplayFull }  from '../lib/dates';
+import { useDriveSync } from '../contexts/DriveSync';
 // Caricamento lazy di xlsx — riduce il bundle iniziale (xlsx ~500KB raw)
 const excelLib = () => import('../lib/excel');
 
@@ -128,6 +130,10 @@ export function Settings() {
 
   // "Predefinita" compare nell'elenco solo se ha log registrati.
   const showDefaultSchedule = hasDefaultProgramData(store.sessions);
+
+  const drive = useDriveSync();
+  const [clientIdInput, setClientIdInput] = useState(drive.clientId ?? '');
+  const [showClientIdField, setShowClientIdField] = useState(false);
 
   const [dialog, setDialog] = useState<'reset-meso' | 'reset-all' | 'del-profile' | null>(null);
   const [newProfileName, setNewProfileName] = useState('');
@@ -463,6 +469,173 @@ export function Settings() {
             className="hidden"
             onChange={handleFileChange}
           />
+        </Section>
+
+        {/* ── Google Drive Sync ──────────────────────────────────────────────── */}
+        <Section title="Google Drive — Sync automatico">
+
+          {/* Stato connessione */}
+          <div className="sl-panel rounded-2xl px-4 py-3 flex items-center gap-3">
+            {drive.status === 'synced' && <Wifi size={18} className="text-emerald-400 shrink-0" />}
+            {drive.status === 'syncing' && <RefreshCw size={18} className="text-[var(--sl-cyan)] shrink-0 animate-spin" />}
+            {drive.status === 'error' && <WifiOff size={18} className="text-rose-400 shrink-0" />}
+            {(drive.status === 'idle' || drive.status === 'disconnected') && (
+              <CloudUpload size={18} className="text-[var(--sl-text-dim)] shrink-0" />
+            )}
+            <div className="flex-1 min-w-0">
+              {drive.status === 'disconnected' && (
+                <p className="text-sm text-slate-400">Non connesso. I dati sono solo su questo dispositivo.</p>
+              )}
+              {drive.status === 'synced' && (
+                <>
+                  <p className="text-sm font-semibold text-emerald-300">Sincronizzato ✓</p>
+                  {drive.email && <p className="text-xs text-[var(--sl-text-dim)] truncate">{drive.email}</p>}
+                  {drive.lastSync && <p className="text-xs text-[var(--sl-text-dim)]">
+                    Ultima sync: {drive.lastSync.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })}
+                  </p>}
+                </>
+              )}
+              {drive.status === 'syncing' && (
+                <p className="text-sm text-[var(--sl-cyan)]">Sincronizzazione in corso…</p>
+              )}
+              {drive.status === 'idle' && drive.email && (
+                <>
+                  <p className="text-sm font-semibold text-slate-200">Connesso</p>
+                  <p className="text-xs text-[var(--sl-text-dim)] truncate">{drive.email}</p>
+                </>
+              )}
+              {drive.status === 'error' && (
+                <>
+                  <p className="text-sm font-semibold text-rose-300">Errore sync</p>
+                  {drive.error && <p className="text-xs text-rose-400/80 truncate">{drive.error}</p>}
+                </>
+              )}
+            </div>
+          </div>
+
+          {/* Client ID non configurato → mostra info + input */}
+          {!drive.clientId && (
+            <div className="sl-panel rounded-2xl px-4 py-3 space-y-2.5">
+              <p className="text-xs text-[var(--sl-text-dim)] leading-relaxed">
+                Per abilitare il sync serve un <span className="text-slate-300 font-semibold">Client ID Google</span>.
+                È gratuito e privato — basta crearlo su Google Cloud Console una volta sola.{' '}
+                <a
+                  href="https://console.cloud.google.com/apis/credentials"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-[var(--sl-cyan)] underline"
+                >
+                  Apri console →
+                </a>
+              </p>
+              <p className="text-xs text-[var(--sl-text-dim)] leading-relaxed">
+                Crea un progetto → Abilita <em>Google Drive API</em> → Credenziali →
+                OAuth 2.0 → Web application → inserisci come "Authorized JavaScript origin"
+                l'URL dell'app (es. <code className="text-slate-300">https://hel98v-dot.github.io</code>).
+              </p>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={clientIdInput}
+                  onChange={e => setClientIdInput(e.target.value)}
+                  placeholder="123456789-abc.apps.googleusercontent.com"
+                  className="flex-1 min-w-0 bg-[rgba(6,10,20,0.85)] border border-[var(--sl-line)] rounded-xl
+                    px-3 py-2.5 text-xs text-slate-100 focus:outline-none focus:border-[var(--sl-cyan)]"
+                />
+                <button
+                  onClick={() => { if (clientIdInput.trim()) drive.setClientId(clientIdInput); }}
+                  disabled={!clientIdInput.trim()}
+                  className="px-4 h-11 rounded-xl bg-[var(--sl-cyan)] text-[#06121e] text-xs font-bold
+                    disabled:opacity-40 shrink-0"
+                >
+                  Salva
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Client ID già configurato + non connesso → Accedi */}
+          {drive.clientId && drive.status === 'disconnected' && (
+            <>
+              <button
+                onClick={() => drive.connect()}
+                className="sl-panel w-full flex items-center gap-3 px-4 py-4 min-h-[56px]
+                  rounded-2xl text-sm font-semibold text-slate-100 active:brightness-110 transition"
+              >
+                <Wifi size={18} className="text-[var(--sl-cyan)] shrink-0" />
+                <span className="flex-1 text-left">
+                  Accedi con Google
+                  <span className="block text-xs text-[var(--sl-text-dim)] font-normal">
+                    Sincronizza i dati su Drive
+                  </span>
+                </span>
+                <ChevronRight size={16} className="text-[var(--sl-cyan)] opacity-60 shrink-0" />
+              </button>
+
+              {/* Cambia Client ID */}
+              {showClientIdField ? (
+                <div className="flex gap-2">
+                  <input
+                    autoFocus
+                    type="text"
+                    value={clientIdInput}
+                    onChange={e => setClientIdInput(e.target.value)}
+                    placeholder="Client ID…"
+                    className="flex-1 min-w-0 bg-[rgba(6,10,20,0.85)] border border-[var(--sl-line)] rounded-xl
+                      px-3 py-2.5 text-xs text-slate-100 focus:outline-none focus:border-[var(--sl-cyan)]"
+                  />
+                  <button
+                    onClick={() => { if (clientIdInput.trim()) { drive.setClientId(clientIdInput); setShowClientIdField(false); } }}
+                    className="w-11 h-11 rounded-xl bg-[var(--sl-cyan)] flex items-center justify-center shrink-0"
+                  >
+                    <Check size={16} className="text-[#06121e]" strokeWidth={3} />
+                  </button>
+                  <button
+                    onClick={() => setShowClientIdField(false)}
+                    className="w-11 h-11 rounded-xl border border-[var(--sl-line)] flex items-center justify-center shrink-0"
+                  >
+                    <X size={16} className="text-[var(--sl-text-dim)]" />
+                  </button>
+                </div>
+              ) : (
+                <button
+                  onClick={() => { setClientIdInput(drive.clientId ?? ''); setShowClientIdField(true); }}
+                  className="flex items-center gap-2 text-xs text-[var(--sl-text-dim)] pl-1 min-h-[44px]"
+                >
+                  <KeyRound size={13} /> Cambia Client ID
+                </button>
+              )}
+            </>
+          )}
+
+          {/* Connesso → Sync manuale + Disconnetti */}
+          {drive.status !== 'disconnected' && drive.clientId && (
+            <div className="flex gap-2">
+              <button
+                onClick={() => drive.manualSync()}
+                disabled={drive.status === 'syncing'}
+                className="flex-1 sl-panel flex items-center justify-center gap-2 px-4 py-3.5 min-h-[48px]
+                  rounded-2xl text-sm font-semibold text-slate-100 active:brightness-110 transition
+                  disabled:opacity-50"
+              >
+                <RefreshCw size={16} className={drive.status === 'syncing' ? 'animate-spin' : ''} />
+                Sincronizza ora
+              </button>
+              <button
+                onClick={() => drive.disconnect()}
+                className="flex items-center justify-center gap-2 px-4 py-3.5 min-h-[48px]
+                  sl-panel rounded-2xl text-sm text-rose-400 font-semibold active:bg-rose-950/30 transition"
+              >
+                <LogOut size={16} />
+                Esci
+              </button>
+            </div>
+          )}
+
+          <p className="text-xs text-slate-600 px-1 leading-relaxed">
+            I dati vengono salvati nella tua <em>appDataFolder</em> privata di Google Drive
+            (non visibile nel Drive normale). Ogni account Google ha la propria copia separata.
+          </p>
         </Section>
 
         {/* ── Programma ──────────────────────────────────────────────────────── */}
