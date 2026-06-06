@@ -121,7 +121,7 @@ export async function getAccessToken(prompt: '' | 'consent' = ''): Promise<strin
   return new Promise<string>((resolve, reject) => {
     pendingResolve = resolve;
     pendingReject  = reject;
-    tokenClient!.requestToken({ prompt });
+    tokenClient!.requestAccessToken({ prompt });
   });
 }
 

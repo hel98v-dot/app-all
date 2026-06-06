@@ -14,7 +14,7 @@ declare global {
   }
 
   interface GisTokenClient {
-    requestToken(config?: { prompt?: string }): void;
+    requestAccessToken(overrideConfig?: { prompt?: string }): void;
   }
 
   interface GisTokenClientConfig {
