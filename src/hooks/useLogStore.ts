@@ -27,6 +27,30 @@ function getActiveProfileId(): string {
 const STORAGE_KEY = logKey(getActiveProfileId());
 
 // -------------------------------------------------------------------
+// Normalizzazione ID esercizi (retrocompatibilità)
+// -------------------------------------------------------------------
+// Commit 07b0017 ha cambiato la generazione degli ID da "${dayKey}-N"
+// (es. "giovedi-0") a "${sessionId}-N" (es. "gio-0").
+// Questa funzione mappa entrambe le forme a un canone breve, così
+// getExerciseLog trova comunque i log salvati con il vecchio formato.
+const EX_ID_PREFIX_MAP: Record<string, string> = {
+  'lunedi':    'lun',
+  'martedi':   'mar',
+  'mercoledi': 'mer',
+  'giovedi':   'gio',
+  'venerdi':   'ven',
+  'sabato':    'sab',
+  'domenica':  'dom',
+};
+
+function canonExId(id: string): string {
+  for (const [full, short] of Object.entries(EX_ID_PREFIX_MAP)) {
+    if (id.startsWith(full + '-')) return short + id.slice(full.length);
+  }
+  return id;
+}
+
+// -------------------------------------------------------------------
 // Helpers puri (fuori dall'hook — niente re-render)
 // -------------------------------------------------------------------
 
@@ -202,10 +226,16 @@ export function useLogStore(): UseLogStoreReturn {
       sessionId: string,
       dateISO: string,
       exerciseId: string,
-    ): ExerciseLog | undefined =>
-      getSessionLog(weekNumber, sessionId, dateISO)?.exercises.find(
-        e => e.exerciseId === exerciseId,
-      ),
+    ): ExerciseLog | undefined => {
+      const session = getSessionLog(weekNumber, sessionId, dateISO);
+      if (!session) return undefined;
+      // Tentativo esatto
+      const exact = session.exercises.find(e => e.exerciseId === exerciseId);
+      if (exact) return exact;
+      // Fallback: confronto con ID normalizzato (gestisce 'giovedi-0' ↔ 'gio-0')
+      const normId = canonExId(exerciseId);
+      return session.exercises.find(e => canonExId(e.exerciseId) === normId);
+    },
     [getSessionLog],
   );
 
@@ -258,9 +288,12 @@ export function useLogStore(): UseLogStoreReturn {
         scheduleId: getActiveScheduleId(),
       };
 
-      // Upsert dell'esercizio nell'array exercises
+      // Upsert dell'esercizio nell'array exercises.
+      // Usa anche il confronto normalizzato così 'giovedi-0' viene trovato
+      // quando si salva con il nuovo id 'gio-0' (retrocompatibilità).
+      const normLogId = canonExId(log.exerciseId);
       const exIdx = session.exercises.findIndex(
-        e => e.exerciseId === log.exerciseId,
+        e => e.exerciseId === log.exerciseId || canonExId(e.exerciseId) === normLogId,
       );
       const updatedExercises: ExerciseLog[] =
         exIdx === -1
@@ -287,7 +320,10 @@ export function useLogStore(): UseLogStoreReturn {
       const existing = getSessionLog(weekNumber, sessionId, dateISO);
       if (!existing) return;
 
-      const exercises = existing.exercises.filter(e => e.exerciseId !== exerciseId);
+      const normId = canonExId(exerciseId);
+      const exercises = existing.exercises.filter(
+        e => e.exerciseId !== exerciseId && canonExId(e.exerciseId) !== normId,
+      );
 
       if (exercises.length === 0) {
         // Sessione rimasta vuota → rimuovila del tutto, così sparisce da
