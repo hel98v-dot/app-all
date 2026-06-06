@@ -16,28 +16,74 @@ import {
   isConnected, saveToken, removeToken,
   readFromGist, writeToGist, verifyToken,
 } from '../lib/gistsync';
-import type { LogStore, SessionLog } from '../types';
+import type { LogStore, SessionLog, ExerciseLog } from '../types';
 import { logKey } from '../hooks/useProfileStore';
 
 // ── Merge di due LogStore ─────────────────────────────────────────────────────
+// Strategia granulare (esercizio per esercizio):
+//   • Sessioni: unione per (weekNumber, sessionId, date).
+//   • Esercizi dentro ogni sessione: unione per exerciseId normalizzato.
+//     Per ogni esercizio duplicato, vince quello con più reps (più completo).
+//   • startDate: la più antica tra le due.
+//
+// Questo evita di perdere esercizi quando i due dispositivi hanno versioni
+// parziali della stessa sessione (es. telefono ha A,B,C e PC ha A,B,D
+// → merge produce A,B,C,D).
 
-function sessionReps(s: SessionLog): number {
-  return s.exercises.reduce(
-    (a, e) => a + e.sets.reduce((b, set) => b + set.reps, 0),
-    0,
-  );
+/** Normalizza 'giovedi-0' → 'gio-0' per confronto cross-formato. */
+const DAY_PREFIX: Record<string, string> = {
+  lunedi: 'lun', martedi: 'mar', mercoledi: 'mer',
+  giovedi: 'gio', venerdi: 'ven', sabato: 'sab', domenica: 'dom',
+};
+function canonId(id: string): string {
+  for (const [full, short] of Object.entries(DAY_PREFIX)) {
+    if (id.startsWith(full + '-')) return short + id.slice(full.length);
+  }
+  return id;
+}
+
+function exReps(e: ExerciseLog): number {
+  return e.sets.reduce((a, s) => a + s.reps, 0);
+}
+
+function mergeExercises(a: ExerciseLog[], b: ExerciseLog[]): ExerciseLog[] {
+  const map = new Map<string, ExerciseLog>();
+  for (const ex of [...a, ...b]) {
+    const key = canonId(ex.exerciseId);
+    const existing = map.get(key);
+    // Mantieni quello con più reps; a parità, il più recente (completedAt)
+    if (!existing) {
+      map.set(key, ex);
+    } else if (exReps(ex) > exReps(existing)) {
+      map.set(key, ex);
+    } else if (exReps(ex) === exReps(existing) && ex.completedAt > existing.completedAt) {
+      map.set(key, ex);
+    }
+  }
+  return Array.from(map.values());
 }
 
 export function mergeStores(local: LogStore, remote: LogStore): LogStore {
   const startDate = local.startDate <= remote.startDate
     ? local.startDate
     : remote.startDate;
+
   const map = new Map<string, SessionLog>();
+
   for (const s of [...local.sessions, ...remote.sessions]) {
     const key = `${s.weekNumber}::${s.sessionId}::${s.date}`;
     const existing = map.get(key);
-    if (!existing || sessionReps(s) > sessionReps(existing)) map.set(key, s);
+    if (!existing) {
+      map.set(key, s);
+    } else {
+      // Merge a livello di esercizio: unione, non sostituzione
+      map.set(key, {
+        ...existing,
+        exercises: mergeExercises(existing.exercises, s.exercises),
+      });
+    }
   }
+
   return { startDate, sessions: Array.from(map.values()) };
 }
 
