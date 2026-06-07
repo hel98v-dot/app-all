@@ -134,6 +134,8 @@ export function Settings() {
   const drive = useDriveSync();
   const [tokenInput, setTokenInput] = useState('');
   const [showTokenField, setShowTokenField] = useState(false);
+  const [showPaste, setShowPaste] = useState(false);
+  const [pasteText, setPasteText] = useState('');
 
   const [dialog, setDialog] = useState<'reset-meso' | 'reset-all' | 'del-profile' | null>(null);
   const [newProfileName, setNewProfileName] = useState('');
@@ -179,6 +181,15 @@ export function Settings() {
     reader.onerror = () => show('Errore nella lettura del file.', 'err');
     reader.readAsText(file);
     e.target.value = '';
+  }
+
+  // ── Import da testo incollato (utile da telefono: copia dal Gist e incolla) ──
+  function handlePasteImport() {
+    const mode = applyBackup(pasteText.trim());
+    if (mode === 'invalid') { show('JSON non valido. Controlla di averlo copiato tutto.', 'err'); return; }
+    show(mode === 'bundle' ? 'Backup ripristinato ✓' : 'Log importato ✓', 'ok');
+    setShowPaste(false);
+    setTimeout(() => window.location.reload(), 600);
   }
 
   // ── Import Excel scheda ───────────────────────────────────────────────────────
@@ -485,9 +496,15 @@ export function Settings() {
           />
           <ActionRow
             icon={<Upload size={18} className="text-indigo-400 shrink-0" />}
-            label="Importa backup"
+            label="Importa backup (file)"
             sublabel="Ripristina log e schede (sovrascrive)"
             onClick={() => fileInputRef.current?.click()}
+          />
+          <ActionRow
+            icon={<Upload size={18} className="text-indigo-400 shrink-0" />}
+            label="Incolla JSON"
+            sublabel="Da telefono: copia dal Gist e incolla qui"
+            onClick={() => { setPasteText(''); setShowPaste(true); }}
           />
           <input
             ref={fileInputRef}
@@ -697,6 +714,52 @@ export function Settings() {
         </Section>
 
       </div>
+
+      {/* Sheet: incolla JSON per importare */}
+      {showPaste && (
+        <div
+          className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm px-4 pb-8"
+          onClick={() => setShowPaste(false)}
+        >
+          <div
+            className="w-full max-w-sm bg-slate-900 border border-slate-700 rounded-3xl p-5 space-y-3"
+            onClick={e => e.stopPropagation()}
+          >
+            <div>
+              <p className="font-bold text-slate-100">Incolla il backup JSON</p>
+              <p className="text-sm text-slate-400 mt-0.5 leading-snug">
+                Copia tutto il contenuto dal Gist (o da un backup) e incollalo qui sotto.
+              </p>
+            </div>
+            <textarea
+              autoFocus
+              value={pasteText}
+              onChange={e => setPasteText(e.target.value)}
+              placeholder='{"startDate":"…","sessions":[…]}'
+              rows={6}
+              className="w-full bg-[rgba(6,10,20,0.85)] border border-[var(--sl-line)] rounded-xl
+                px-3 py-2.5 text-xs text-slate-100 font-mono focus:outline-none focus:border-[var(--sl-cyan)] resize-none"
+            />
+            <div className="flex gap-2.5">
+              <button
+                onClick={() => setShowPaste(false)}
+                className="flex-1 py-3.5 rounded-2xl bg-slate-800 border border-slate-700
+                  text-slate-300 font-semibold text-sm active:bg-slate-700"
+              >
+                Annulla
+              </button>
+              <button
+                onClick={handlePasteImport}
+                disabled={!pasteText.trim()}
+                className="flex-1 py-3.5 rounded-2xl bg-[var(--sl-cyan)] text-[#06121e]
+                  font-bold text-sm disabled:opacity-40"
+              >
+                Importa
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Dialogs */}
       <ConfirmDialog
