@@ -22,7 +22,7 @@ import { serializeBackup, applyBackup } from '../lib/backup';
 // Caricamento lazy di xlsx — riduce il bundle iniziale (xlsx ~500KB raw)
 const excelLib = () => import('../lib/excel');
 
-const APP_VERSION = '0.2.0';
+const APP_VERSION = '0.3.0';
 
 // ── Sezione wrapper ───────────────────────────────────────────────────────────
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
