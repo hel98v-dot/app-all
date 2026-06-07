@@ -192,8 +192,9 @@ export function DriveSyncProvider({ children }: { children: ReactNode }) {
         }
       } else {
         // Primo accesso da questo device: carica il locale sul Gist
+        // solo se ha effettivamente sessioni (non sovrascrivere con store vuoto)
         const local = readLocal();
-        if (local) await writeToGist(JSON.stringify(local));
+        if (local && local.sessions.length > 0) await writeToGist(JSON.stringify(local));
       }
 
       if (alive.current) { setStatus('synced'); setLastSync(new Date()); }
@@ -206,13 +207,17 @@ export function DriveSyncProvider({ children }: { children: ReactNode }) {
   }, []);
 
   // ── Push ──────────────────────────────────────────────────────────────────
+  // SALVAGUARDIA: non sovrascrivere mai il Gist con dati vuoti.
+  // Se il locale non ha sessioni (dispositivo senza dati), salta il push
+  // per non cancellare i dati dell'altro dispositivo.
 
   const doPush = useCallback(async (): Promise<void> => {
     if (!isConnected() || !alive.current) return;
+    const local = readLocal();
+    if (!local || local.sessions.length === 0) return; // mai pushare store vuoto
     setStatus('syncing');
     try {
-      const local = readLocal();
-      if (local) await writeToGist(JSON.stringify(local));
+      await writeToGist(JSON.stringify(local));
       if (alive.current) { setStatus('synced'); setLastSync(new Date()); }
     } catch (e) {
       if (alive.current) {
