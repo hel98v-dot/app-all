@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useNavigate }       from 'react-router-dom';
 import {
   MapPin, Moon, Footprints,
-  AlertTriangle, CheckCircle2,
+  AlertTriangle, CheckCircle2, ArrowRightLeft,
 } from 'lucide-react';
 import { TOTAL_WEEKS, type Exercise, type Muscle } from '../data/program';
 import { useLogStore }        from '../hooks/useLogStore';
@@ -41,7 +41,7 @@ function readSelection(): { week: number; sessionId: string } | null {
 }
 
 export function Today() {
-  const { startDate, getExerciseLog, clearExerciseLog, getAllSessionLogs } = useLogStore();
+  const { startDate, getExerciseLog, clearExerciseLog, getAllSessionLogs, getActiveSessionLogs } = useLogStore();
   const program = useProgramData();
 
   // Voci del selettore scheda: "Predefinita" compare solo se ci sono dati
@@ -99,7 +99,9 @@ export function Today() {
   // con serie reali (reps > 0), oppure oggi se non c'è nessun dato.
   // Risolve il caso in cui si allenava ieri e Today cercava la data di oggi.
   const sessionDateISO = useMemo(() => {
-    const withData = getAllSessionLogs().filter(
+    // Solo le sessioni della SCHEDA ATTIVA: una scheda nuova non deve ereditare
+    // le date già loggate in un'altra scheda con lo stesso giorno.
+    const withData = getActiveSessionLogs().filter(
       s =>
         s.weekNumber === selectedWeek &&
         s.sessionId  === selectedSessionId &&
@@ -107,7 +109,35 @@ export function Today() {
     );
     if (withData.length === 0) return dateISO;
     return withData.sort((a, b) => b.date.localeCompare(a.date))[0]!.date;
-  }, [getAllSessionLogs, selectedWeek, selectedSessionId, dateISO]);
+  }, [getActiveSessionLogs, selectedWeek, selectedSessionId, dateISO]);
+
+  // Recupero dati: se la SCHEDA ATTIVA non ha alcuna serie loggata ma un'altra
+  // scheda (selezionabile) ne ha, proponi di passare a quella. Non distruttivo:
+  // è solo un suggerimento, l'utente decide. Risolve il caso "ho i dati ma non
+  // li vedo perché è attiva la scheda sbagliata".
+  const dataRecovery = useMemo<{ id: string; name: string } | null>(() => {
+    const active = program.activeScheduleId;
+    const setsBySchedule = new Map<string, number>();
+    for (const s of getAllSessionLogs()) {
+      const sid = s.scheduleId ?? DEFAULT_SCHEDULE_ID;
+      const n = s.exercises.reduce((a, e) => a + e.sets.filter(x => x.reps > 0).length, 0);
+      if (n > 0) setsBySchedule.set(sid, (setsBySchedule.get(sid) ?? 0) + n);
+    }
+    if ((setsBySchedule.get(active) ?? 0) > 0) return null; // l'attiva ha dati → ok
+
+    let best: { id: string; n: number } | null = null;
+    for (const [sid, n] of setsBySchedule) {
+      if (sid === active) continue;
+      if (!best || n > best.n) best = { id: sid, n };
+    }
+    if (!best) return null;
+
+    // Risolvi un nome solo se la scheda è effettivamente selezionabile.
+    const name = best.id === DEFAULT_SCHEDULE_ID
+      ? 'Predefinita'
+      : program.schedules.find(s => s.id === best!.id)?.name;
+    return name ? { id: best.id, name } : null;
+  }, [getAllSessionLogs, program.activeScheduleId, program.schedules]);
 
   const sessionTabs = program.baseSessions.map(s => ({
     sessionId: s.id,
@@ -166,6 +196,23 @@ export function Today() {
         <p className="sl-label text-[10px] text-[var(--sl-cyan)] sl-glow-text">▣ Missione Giornaliera</p>
         <h1 className="sl-heading text-2xl mt-1">{formatDisplay(dateISO)}</h1>
       </div>
+
+      {/* Banner recupero dati: c'è una scheda con dati ma non è quella attiva */}
+      {dataRecovery && (
+        <button
+          onClick={() => switchSchedule(dataRecovery.id)}
+          className="w-full text-left rounded-2xl bg-indigo-950/60 border border-indigo-600/60
+            px-4 py-3 flex items-center gap-3 active:bg-indigo-900/40 transition-colors"
+        >
+          <ArrowRightLeft size={18} className="text-indigo-300 shrink-0" strokeWidth={2} />
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-bold text-indigo-200">I tuoi dati sono in "{dataRecovery.name}"</p>
+            <p className="text-xs text-indigo-300/70 mt-0.5">
+              La scheda attiva è vuota. Tocca per passare alla scheda con i tuoi allenamenti.
+            </p>
+          </div>
+        </button>
+      )}
 
       {/* Selettore scheda (solo se c'è più di una voce selezionabile) */}
       {scheduleItems.length >= 2 && (

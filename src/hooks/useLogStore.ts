@@ -6,7 +6,7 @@
 import { useCallback, useState } from 'react';
 import type { ExerciseLog, LogStore, SessionLog } from '../types';
 import { logKey } from './useProfileStore';
-import { getActiveScheduleId } from '../lib/schedules';
+import { getActiveScheduleId, DEFAULT_SCHEDULE_ID } from '../lib/schedules';
 import { today } from '../lib/dates';
 
 // -------------------------------------------------------------------
@@ -48,6 +48,24 @@ function canonExId(id: string): string {
     if (id.startsWith(full + '-')) return short + id.slice(full.length);
   }
   return id;
+}
+
+// -------------------------------------------------------------------
+// Isolamento per scheda (scheduleId)
+// -------------------------------------------------------------------
+// Le sessioni sono taggate con lo scheduleId della scheda attiva al momento
+// del log. Le query/mutazioni di Oggi e dei logger operano SEMPRE sulla scheda
+// attiva: scopando i lookup evitiamo che i dati di una scheda "sporchino"
+// un'altra (es. una nuova scheda che mostra i giorni già fatti in un'altra).
+// Le sessioni senza scheduleId (vecchi dati) sono trattate come 'default'.
+
+function sessionScheduleId(s: SessionLog): string {
+  return s.scheduleId ?? DEFAULT_SCHEDULE_ID;
+}
+
+/** True se la sessione appartiene alla scheda data. */
+function inSchedule(s: SessionLog, scheduleId: string): boolean {
+  return sessionScheduleId(s) === scheduleId;
 }
 
 // -------------------------------------------------------------------
@@ -134,8 +152,11 @@ export interface UseLogStoreReturn {
     exerciseId: string,
   ) => ExerciseLog | undefined;
 
-  /** Restituisce tutte le sessioni loggate in ordine cronologico. */
+  /** Restituisce tutte le sessioni loggate in ordine cronologico (TUTTE le schede). */
   getAllSessionLogs: () => SessionLog[];
+
+  /** Solo le sessioni della scheda attiva, in ordine cronologico. */
+  getActiveSessionLogs: () => SessionLog[];
 
   // ---- Mutazioni ---------------------------------------------------
 
@@ -213,13 +234,16 @@ export function useLogStore(): UseLogStoreReturn {
   // ---- Query -------------------------------------------------------
 
   const getSessionLog = useCallback(
-    (weekNumber: number, sessionId: string, dateISO: string): SessionLog | undefined =>
-      store.sessions.find(
+    (weekNumber: number, sessionId: string, dateISO: string): SessionLog | undefined => {
+      const active = getActiveScheduleId();
+      return store.sessions.find(
         s =>
           s.weekNumber === weekNumber &&
           s.sessionId === sessionId &&
-          s.date === dateISO,
-      ),
+          s.date === dateISO &&
+          inSchedule(s, active),
+      );
+    },
     [store.sessions],
   );
 
@@ -248,15 +272,30 @@ export function useLogStore(): UseLogStoreReturn {
     [store.sessions],
   );
 
+  const getActiveSessionLogs = useCallback(
+    (): SessionLog[] => {
+      const active = getActiveScheduleId();
+      return store.sessions
+        .filter(s => inSchedule(s, active))
+        .sort((a, b) => a.date.localeCompare(b.date));
+    },
+    [store.sessions],
+  );
+
   // ---- Mutazioni ---------------------------------------------------
 
   const saveSessionLog = useCallback(
     (log: SessionLog): void => {
+      // Identità completa: (scheduleId, week, sessionId, date). Includere lo
+      // scheduleId evita di sovrascrivere la sessione di un'altra scheda che
+      // condivide lo stesso giorno (es. due schede con la sessione 'gio').
+      const logSchedId = sessionScheduleId(log);
       const idx = store.sessions.findIndex(
         s =>
           s.weekNumber === log.weekNumber &&
           s.sessionId === log.sessionId &&
-          s.date === log.date,
+          s.date === log.date &&
+          sessionScheduleId(s) === logSchedId,
       );
 
       const next: LogStore = {
@@ -331,10 +370,18 @@ export function useLogStore(): UseLogStoreReturn {
       if (exercises.length === 0) {
         // Sessione rimasta vuota → rimuovila del tutto, così sparisce da
         // calendario, registro e volume (anche se era stata aperta in passato).
+        // Scopata sullo scheduleId della sessione trovata, per non toccare
+        // sessioni omonime di altre schede.
+        const existingSchedId = sessionScheduleId(existing);
         commit({
           ...store,
           sessions: store.sessions.filter(
-            s => !(s.weekNumber === weekNumber && s.sessionId === sessionId && s.date === dateISO),
+            s => !(
+              s.weekNumber === weekNumber &&
+              s.sessionId === sessionId &&
+              s.date === dateISO &&
+              sessionScheduleId(s) === existingSchedId
+            ),
           ),
         });
       } else {
@@ -403,6 +450,7 @@ export function useLogStore(): UseLogStoreReturn {
     getSessionLog,
     getExerciseLog,
     getAllSessionLogs,
+    getActiveSessionLogs,
     saveSessionLog,
     saveExerciseLog,
     clearExerciseLog,

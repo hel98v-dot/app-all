@@ -53,18 +53,32 @@ function writeRaw(pid: string, store: SchedulesStore): void {
 
 type RawSession = { scheduleId?: string; exercises: Array<{ sets: Array<{ reps: number }> }> };
 
-/** True se esistono log con almeno 1 serie svolta per il dato scheduleId. */
-function scheduleHasLogs(pid: string, scheduleId: string): boolean {
+/**
+ * Restituisce lo scheduleId che possiede il maggior numero di serie loggate
+ * (reps > 0), o null se non ci sono dati. Serve a ripiegare su una scheda
+ * "viva" quando l'activeId è invalido.
+ */
+function scheduleIdWithMostLogs(pid: string): string | null {
   try {
     const raw = localStorage.getItem(logKeyFor(pid));
-    if (!raw) return false;
+    if (!raw) return null;
     const store = JSON.parse(raw) as { sessions?: RawSession[] };
-    if (!Array.isArray(store?.sessions)) return false;
-    return store.sessions.some(
-      s => (s.scheduleId ?? DEFAULT_SCHEDULE_ID) === scheduleId
-        && s.exercises.some(e => e.sets.some(set => set.reps > 0)),
-    );
-  } catch { return false; }
+    if (!Array.isArray(store?.sessions)) return null;
+    const tally = new Map<string, number>();
+    for (const s of store.sessions) {
+      const sid = s.scheduleId ?? DEFAULT_SCHEDULE_ID;
+      const sets = s.exercises.reduce(
+        (a, e) => a + e.sets.filter(set => set.reps > 0).length, 0,
+      );
+      if (sets > 0) tally.set(sid, (tally.get(sid) ?? 0) + sets);
+    }
+    let best: string | null = null;
+    let bestN = 0;
+    for (const [sid, n] of tally) {
+      if (n > bestN) { best = sid; bestN = n; }
+    }
+    return best;
+  } catch { return null; }
 }
 
 /** Tagga (una volta) i log senza scheduleId con l'id dato. */
@@ -91,22 +105,19 @@ export function readSchedules(): SchedulesStore {
     // activeId valido = 'default' (programma built-in) OPPURE una scheda esistente.
     // NB: 'default' resta sempre valido, così i log registrati sul programma
     // predefinito non spariscono quando si carica una scheda Excel.
+    // L'unico auto-fix sicuro: se l'activeId punta a una scheda inesistente
+    // (né 'default' né presente nella lista), ripiega su una valida — preferendo
+    // quella che possiede più dati loggati. NON spostiamo mai automaticamente
+    // l'utente tra schede entrambe valide (lo farebbe perdere di vista i dati);
+    // il recupero "dati in un'altra scheda" è gestito da un banner in Oggi.
     const valid = activeId === DEFAULT_SCHEDULE_ID || existing.list.some(s => s.id === activeId);
     if (!valid) {
-      activeId = existing.list[0]?.id ?? DEFAULT_SCHEDULE_ID;
-      writeRaw(pid, { ...existing, activeId });
-    }
-
-    // Auto-recovery: se la scheda attiva è una scheda custom che NON ha log
-    // ma il programma predefinito ha dati registrati, torna a 'default'
-    // automaticamente. Questo recupera chi è rimasto bloccato su una scheda
-    // Excel vuota dopo un aggiornamento dell'app.
-    if (
-      activeId !== DEFAULT_SCHEDULE_ID &&
-      !scheduleHasLogs(pid, activeId) &&
-      scheduleHasLogs(pid, DEFAULT_SCHEDULE_ID)
-    ) {
-      activeId = DEFAULT_SCHEDULE_ID;
+      const owner = scheduleIdWithMostLogs(pid);
+      const ownerValid = owner != null
+        && (owner === DEFAULT_SCHEDULE_ID || existing.list.some(s => s.id === owner));
+      activeId = (ownerValid ? owner : null)
+        ?? existing.list[0]?.id
+        ?? DEFAULT_SCHEDULE_ID;
       writeRaw(pid, { ...existing, activeId });
     }
 
