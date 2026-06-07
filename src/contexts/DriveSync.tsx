@@ -42,6 +42,9 @@ function canonId(id: string): string {
   return id;
 }
 
+function exDoneSets(e: ExerciseLog): number {
+  return e.sets.filter(s => s.reps > 0).length;
+}
 function exReps(e: ExerciseLog): number {
   return e.sets.reduce((a, s) => a + s.reps, 0);
 }
@@ -51,12 +54,21 @@ function mergeExercises(a: ExerciseLog[], b: ExerciseLog[]): ExerciseLog[] {
   for (const ex of [...a, ...b]) {
     const key = canonId(ex.exerciseId);
     const existing = map.get(key);
-    // Mantieni quello con più reps; a parità, il più recente (completedAt)
     if (!existing) {
       map.set(key, ex);
-    } else if (exReps(ex) > exReps(existing)) {
+      continue;
+    }
+    // Priorità: 1) più serie completate (reps > 0)
+    //           2) più reps totali
+    //           3) più recente (completedAt)
+    const eDone = exDoneSets(ex);
+    const xDone = exDoneSets(existing);
+    if (eDone > xDone) {
       map.set(key, ex);
-    } else if (exReps(ex) === exReps(existing) && ex.completedAt > existing.completedAt) {
+    } else if (eDone === xDone && exReps(ex) > exReps(existing)) {
+      map.set(key, ex);
+    } else if (eDone === xDone && exReps(ex) === exReps(existing)
+               && ex.completedAt > existing.completedAt) {
       map.set(key, ex);
     }
   }
@@ -231,6 +243,19 @@ export function DriveSyncProvider({ children }: { children: ReactNode }) {
     if (isConnected()) pullAndMerge();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // ── Pull quando l'app torna in foreground ─────────────────────────────────
+  // Cattura sia il ritorno dalla schermata Home (PWA mobile) sia il cambio
+  // di tab su browser desktop → garantisce che il PC veda i dati del telefono
+  // non appena l'utente riaprirà la scheda.
+
+  useEffect(() => {
+    const onVisible = () => {
+      if (!document.hidden && isConnected()) pullAndMerge();
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => document.removeEventListener('visibilitychange', onVisible);
+  }, [pullAndMerge]);
 
   // ── Azioni pubbliche ──────────────────────────────────────────────────────
 
