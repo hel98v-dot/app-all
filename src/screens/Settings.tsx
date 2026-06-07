@@ -18,6 +18,7 @@ import { ConfirmDialog }      from '../components/ConfirmDialog';
 import { BackgroundPicker }   from '../components/BackgroundPicker';
 import { formatDisplayFull }  from '../lib/dates';
 import { useDriveSync } from '../contexts/DriveSync';
+import { serializeBackup, applyBackup } from '../lib/backup';
 // Caricamento lazy di xlsx — riduce il bundle iniziale (xlsx ~500KB raw)
 const excelLib = () => import('../lib/excel');
 
@@ -115,7 +116,6 @@ function InfoRow({ label, value }: { label: string; value: string }) {
 export function Settings() {
   const {
     store, startDate,
-    exportJSON, importJSON,
     resetAll, resetMesocycle,
   } = useLogStore();
 
@@ -143,21 +143,23 @@ export function Settings() {
   const [renameValue, setRenameValue] = useState('');
 
   // ── Export ────────────────────────────────────────────────────────────────────
+  // Backup COMPLETO: log + schede + superset + sostituzioni (ripristino senza perdite).
   function handleExport() {
-    const json     = exportJSON();
+    const json     = serializeBackup();
     const blob     = new Blob([json], { type: 'application/json' });
     const url      = URL.createObjectURL(blob);
     const date     = new Date().toISOString().slice(0, 10);
-    const filename = `training-log-${date}.json`;
+    const filename = `arise-backup-${date}.json`;
     const a        = document.createElement('a');
     a.href         = url;
     a.download     = filename;
     a.click();
     URL.revokeObjectURL(url);
-    show(`Esportato: ${filename}`, 'ok');
+    show(`Backup esportato: ${filename}`, 'ok');
   }
 
   // ── Import ────────────────────────────────────────────────────────────────────
+  // Accetta sia il backup completo nuovo sia i vecchi export "solo log".
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -165,8 +167,14 @@ export function Settings() {
     reader.onload = ev => {
       const text = ev.target?.result;
       if (typeof text !== 'string') { show('Errore nella lettura del file.', 'err'); return; }
-      const ok = importJSON(text);
-      show(ok ? 'Dati importati con successo! ✓' : 'File non valido o corrotto.', ok ? 'ok' : 'err');
+      const mode = applyBackup(text);
+      if (mode === 'invalid') {
+        show('File non valido o corrotto.', 'err');
+        return;
+      }
+      // Scritto direttamente in localStorage → ricarica per applicare ovunque.
+      show(mode === 'bundle' ? 'Backup ripristinato ✓' : 'Log importato ✓', 'ok');
+      setTimeout(() => window.location.reload(), 600);
     };
     reader.onerror = () => show('Errore nella lettura del file.', 'err');
     reader.readAsText(file);
@@ -368,15 +376,15 @@ export function Settings() {
             const isRenaming = renamingId === sch.id;
             return (
               <div key={sch.id} className={[
-                'flex items-center gap-2 px-4 py-3 rounded-2xl border',
+                'px-4 py-3 rounded-2xl border space-y-2.5',
                 isActive
                   ? 'bg-[rgba(139,92,255,0.12)] border-[var(--sl-violet)] shadow-[0_0_12px_var(--sl-glow-violet)]'
                   : 'sl-panel',
               ].join(' ')}>
-                <FileSpreadsheet size={16} className={isActive ? 'text-[var(--sl-violet-soft)] shrink-0' : 'text-[var(--sl-text-dim)] shrink-0'} />
-
-                {isRenaming ? (
-                  <>
+                {/* Riga 1: nome + stato */}
+                <div className="flex items-center gap-2">
+                  <FileSpreadsheet size={16} className={isActive ? 'text-[var(--sl-violet-soft)] shrink-0' : 'text-[var(--sl-text-dim)] shrink-0'} />
+                  {isRenaming ? (
                     <input
                       autoFocus
                       value={renameValue}
@@ -386,36 +394,55 @@ export function Settings() {
                         if (e.key === 'Escape') setRenamingId(null);
                       }}
                       maxLength={40}
-                      className="flex-1 min-w-0 bg-[rgba(6,10,20,0.85)] border border-[var(--sl-line)] rounded-lg px-2 py-1.5 text-sm text-slate-100 focus:outline-none focus:border-[var(--sl-cyan)]"
+                      className="flex-1 min-w-0 bg-[rgba(6,10,20,0.85)] border border-[var(--sl-line)] rounded-lg px-2 py-2 text-sm text-slate-100 focus:outline-none focus:border-[var(--sl-cyan)]"
                     />
-                    <button onClick={() => { if (renameValue.trim()) renameSchedule(sch.id, renameValue); }} aria-label="Conferma" className="w-9 h-9 flex items-center justify-center rounded-lg bg-[var(--sl-cyan)] text-[#06121e] shrink-0">
-                      <Check size={16} strokeWidth={3} />
-                    </button>
-                    <button onClick={() => setRenamingId(null)} aria-label="Annulla" className="w-9 h-9 flex items-center justify-center rounded-lg text-[var(--sl-text-dim)] border border-[var(--sl-line)] shrink-0">
-                      <X size={16} />
-                    </button>
-                  </>
-                ) : (
-                  <>
+                  ) : (
                     <span className="flex-1 min-w-0 text-sm font-semibold text-slate-100 truncate">{sch.name}</span>
-                    {isActive
-                      ? <span className="sl-label text-[9px] text-[var(--sl-violet-soft)] shrink-0">attiva</span>
-                      : <button onClick={() => switchSchedule(sch.id)} className="text-xs text-[var(--sl-cyan)] underline min-h-[44px] px-1 shrink-0">Attiva</button>}
+                  )}
+                  {isActive && !isRenaming && (
+                    <span className="sl-label text-[9px] text-[var(--sl-violet-soft)] shrink-0">attiva</span>
+                  )}
+                </div>
+
+                {/* Riga 2: azioni — touch target ≥44px, etichette chiare */}
+                {isRenaming ? (
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => { if (renameValue.trim()) renameSchedule(sch.id, renameValue); }}
+                      className="flex-1 h-11 flex items-center justify-center gap-1.5 rounded-xl bg-[var(--sl-cyan)] text-[#06121e] text-xs font-bold"
+                    >
+                      <Check size={15} strokeWidth={3} /> Salva
+                    </button>
+                    <button
+                      onClick={() => setRenamingId(null)}
+                      className="px-4 h-11 flex items-center justify-center rounded-xl text-[var(--sl-text-dim)] border border-[var(--sl-line)] text-xs font-semibold"
+                    >
+                      Annulla
+                    </button>
+                  </div>
+                ) : (
+                  <div className="flex gap-2">
+                    {!isActive && (
+                      <button
+                        onClick={() => switchSchedule(sch.id)}
+                        className="flex-1 h-11 flex items-center justify-center rounded-xl bg-[rgba(139,92,255,0.16)] border border-[var(--sl-violet)] text-[var(--sl-violet-soft)] text-xs font-bold active:brightness-110"
+                      >
+                        Attiva
+                      </button>
+                    )}
                     <button
                       onClick={() => { setRenamingId(sch.id); setRenameValue(sch.name); }}
-                      aria-label="Rinomina scheda"
-                      className="w-9 h-9 flex items-center justify-center rounded-lg text-slate-500 active:text-[var(--sl-cyan-soft)] active:bg-[rgba(56,225,255,0.12)] shrink-0"
+                      className="flex-1 h-11 flex items-center justify-center gap-1.5 rounded-xl border border-[var(--sl-line)] text-slate-300 text-xs font-semibold active:bg-[rgba(56,225,255,0.1)]"
                     >
-                      <Pencil size={14} />
+                      <Pencil size={13} /> Rinomina
                     </button>
                     <button
                       onClick={() => setScheduleToDelete({ id: sch.id, name: sch.name })}
-                      aria-label="Elimina scheda"
-                      className="w-9 h-9 flex items-center justify-center rounded-lg text-slate-500 active:text-rose-300 active:bg-rose-900/40 shrink-0"
+                      className="flex-1 h-11 flex items-center justify-center gap-1.5 rounded-xl border border-rose-800/60 text-rose-400 text-xs font-semibold active:bg-rose-900/40"
                     >
-                      <Trash2 size={15} />
+                      <Trash2 size={13} /> Elimina
                     </button>
-                  </>
+                  </div>
                 )}
               </div>
             );
@@ -452,14 +479,14 @@ export function Settings() {
         <Section title="Backup">
           <ActionRow
             icon={<Download size={18} className="text-indigo-400 shrink-0" />}
-            label="Esporta JSON"
-            sublabel={`${totalSessions} sessioni · ${Math.round(totalVolume).toLocaleString('it-IT')} kg`}
+            label="Esporta backup completo"
+            sublabel={`Log + schede · ${totalSessions} sessioni · ${Math.round(totalVolume).toLocaleString('it-IT')} kg`}
             onClick={handleExport}
           />
           <ActionRow
             icon={<Upload size={18} className="text-indigo-400 shrink-0" />}
-            label="Importa JSON"
-            sublabel="Sovrascrive i dati attuali"
+            label="Importa backup"
+            sublabel="Ripristina log e schede (sovrascrive)"
             onClick={() => fileInputRef.current?.click()}
           />
           <input

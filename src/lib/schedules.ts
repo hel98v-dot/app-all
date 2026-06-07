@@ -200,10 +200,17 @@ export function addSchedule(name: string, sessions: Session[]): void {
 
 export function deleteSchedule(id: string): void {
   const pid = activeProfileId();
-  const store = readRaw(pid);
-  if (!store) return;
+  // readRaw può restituire null se lo store è leggermente malformato: in tal
+  // caso ricostruiamo da readSchedules() così l'eliminazione non fallisce mai.
+  const store = readRaw(pid) ?? readSchedules();
   store.list = store.list.filter(s => s.id !== id);
-  if (store.activeId === id) store.activeId = store.list[0]?.id ?? DEFAULT_SCHEDULE_ID;
+  if (store.activeId === id) {
+    // Eliminata la scheda attiva: passa alla scheda (ancora esistente) con più
+    // dati loggati, altrimenti alla prima, altrimenti al programma predefinito.
+    const owner = scheduleIdWithMostLogs(pid);
+    const ownerStillValid = owner != null && store.list.some(s => s.id === owner);
+    store.activeId = ownerStillValid ? owner! : (store.list[0]?.id ?? DEFAULT_SCHEDULE_ID);
+  }
   writeRaw(pid, store);
   window.location.reload();
 }
