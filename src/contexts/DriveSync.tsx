@@ -1,12 +1,15 @@
 // src/contexts/DriveSync.tsx
-// Contesto React per la sincronizzazione automatica via GitHub Gist.
+// Sincronizzazione automatica via GitHub Gist — SOLO i log di allenamento.
+//
+// Scelta deliberata: si sincronizza esclusivamente il LogStore (le sessioni),
+// NON le schede. Sincronizzare anche le schede causava un loop di ricarica
+// (unione delle liste schede che differiva sempre dal locale). Le schede si
+// trasferiscono tra dispositivi con Esporta/Importa backup (manuale, una volta).
 //
 // Flusso:
-//  1. All'avvio: se connesso, legge dal Gist, fa merge con locale,
-//     salva il merged localmente + sul Gist e ricarica l'app se ci sono diff.
-//  2. Ad ogni mutazione del log (evento 'log-store-update' da useLogStore),
-//     fa un push debounced (3 s) verso il Gist.
-//  3. Settings: inserisci token / disconnetti / sync manuale.
+//  1. Avvio / ritorno in foreground: pull → merge (granulare per esercizio) →
+//     se il log è davvero cambiato, applica e ricarica UNA volta (guardia anti-loop).
+//  2. Ad ogni modifica del log: push debounced (merge remoto+locale, nessun reload).
 
 import {
   createContext, useCallback, useContext, useEffect, useRef, useState,
@@ -17,26 +20,10 @@ import {
   readFromGist, writeToGist, verifyToken,
 } from '../lib/gistsync';
 import type { LogStore, SessionLog, ExerciseLog } from '../types';
-import {
-  buildBackup, applyBackup, isBackupBundle, type AppBackup,
-} from '../lib/backup';
-import {
-  DEFAULT_SCHEDULE_ID, type SchedulesStore, type StoredSchedule,
-} from '../lib/schedules';
-import { today } from '../lib/dates';
+import { logKey } from '../hooks/useProfileStore';
 
-// ── Merge di due LogStore ─────────────────────────────────────────────────────
-// Strategia granulare (esercizio per esercizio):
-//   • Sessioni: unione per (weekNumber, sessionId, date).
-//   • Esercizi dentro ogni sessione: unione per exerciseId normalizzato.
-//     Per ogni esercizio duplicato, vince quello con più reps (più completo).
-//   • startDate: la più antica tra le due.
-//
-// Questo evita di perdere esercizi quando i due dispositivi hanno versioni
-// parziali della stessa sessione (es. telefono ha A,B,C e PC ha A,B,D
-// → merge produce A,B,C,D).
+// ── Merge granulare di due LogStore (per esercizio) ───────────────────────────
 
-/** Normalizza 'giovedi-0' → 'gio-0' per confronto cross-formato. */
 const DAY_PREFIX: Record<string, string> = {
   lunedi: 'lun', martedi: 'mar', mercoledi: 'mer',
   giovedi: 'gio', venerdi: 'ven', sabato: 'sab', domenica: 'dom',
@@ -48,165 +35,79 @@ function canonId(id: string): string {
   return id;
 }
 
-function exDoneSets(e: ExerciseLog): number {
-  return e.sets.filter(s => s.reps > 0).length;
-}
-function exReps(e: ExerciseLog): number {
-  return e.sets.reduce((a, s) => a + s.reps, 0);
-}
+function exDoneSets(e: ExerciseLog): number { return e.sets.filter(s => s.reps > 0).length; }
+function exReps(e: ExerciseLog): number { return e.sets.reduce((a, s) => a + s.reps, 0); }
 
 function mergeExercises(a: ExerciseLog[], b: ExerciseLog[]): ExerciseLog[] {
   const map = new Map<string, ExerciseLog>();
   for (const ex of [...a, ...b]) {
     const key = canonId(ex.exerciseId);
     const existing = map.get(key);
-    if (!existing) {
-      map.set(key, ex);
-      continue;
-    }
-    // Priorità: 1) più serie completate (reps > 0)
-    //           2) più reps totali
-    //           3) più recente (completedAt)
-    const eDone = exDoneSets(ex);
-    const xDone = exDoneSets(existing);
-    if (eDone > xDone) {
-      map.set(key, ex);
-    } else if (eDone === xDone && exReps(ex) > exReps(existing)) {
-      map.set(key, ex);
-    } else if (eDone === xDone && exReps(ex) === exReps(existing)
-               && ex.completedAt > existing.completedAt) {
-      map.set(key, ex);
-    }
+    if (!existing) { map.set(key, ex); continue; }
+    const eDone = exDoneSets(ex), xDone = exDoneSets(existing);
+    if (eDone > xDone) map.set(key, ex);
+    else if (eDone === xDone && exReps(ex) > exReps(existing)) map.set(key, ex);
+    else if (eDone === xDone && exReps(ex) === exReps(existing) && ex.completedAt > existing.completedAt) map.set(key, ex);
   }
   return Array.from(map.values());
 }
 
 export function mergeStores(local: LogStore, remote: LogStore): LogStore {
-  const startDate = local.startDate <= remote.startDate
-    ? local.startDate
-    : remote.startDate;
-
+  const startDate = local.startDate <= remote.startDate ? local.startDate : remote.startDate;
   const map = new Map<string, SessionLog>();
-
   for (const s of [...local.sessions, ...remote.sessions]) {
     const key = `${s.weekNumber}::${s.sessionId}::${s.date}`;
     const existing = map.get(key);
-    if (!existing) {
-      map.set(key, s);
-    } else {
-      // Merge a livello di esercizio: unione, non sostituzione
-      map.set(key, {
-        ...existing,
-        exercises: mergeExercises(existing.exercises, s.exercises),
-      });
-    }
+    if (!existing) map.set(key, s);
+    else map.set(key, { ...existing, exercises: mergeExercises(existing.exercises, s.exercises) });
   }
-
   return { startDate, sessions: Array.from(map.values()) };
 }
 
-// ── Merge dell'intero bundle (log + schede + superset + swap) ─────────────────
-// Il payload sincronizzato è il backup completo, non solo i log: così un
-// dispositivo che non ha mai importato la scheda Excel riceve comunque la
-// definizione della scheda e può mostrare i log sincronizzati.
+// ── Estrai un LogStore dal contenuto del Gist (bundle o log "nudo") ───────────
 
-function asLogStore(v: unknown): LogStore | null {
-  if (v && typeof v === 'object' && Array.isArray((v as { sessions?: unknown }).sessions)) {
-    return v as LogStore;
-  }
+function extractLog(raw: unknown): LogStore | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const o = raw as { sessions?: unknown; log?: { sessions?: unknown } };
+  if (Array.isArray(o.sessions)) return o as unknown as LogStore;          // LogStore nudo
+  if (o.log && Array.isArray(o.log.sessions)) return o.log as LogStore;    // bundle
   return null;
 }
 
-function asSchedulesStore(v: unknown): SchedulesStore | null {
-  if (v && typeof v === 'object' && Array.isArray((v as { list?: unknown }).list)) {
-    return v as SchedulesStore;
-  }
-  return null;
+// ── Chiave log del profilo attivo ─────────────────────────────────────────────
+
+function activeLogKey(): string {
+  try {
+    const raw = localStorage.getItem('profiles-v1');
+    if (raw) {
+      const p = JSON.parse(raw) as { activeId?: string };
+      if (p.activeId) return logKey(p.activeId);
+    }
+  } catch { /* ignore */ }
+  return 'training-log-v1';
+}
+const LOG_KEY = activeLogKey();
+
+function readLocal(): LogStore | null {
+  try {
+    const raw = localStorage.getItem(LOG_KEY);
+    return raw ? (JSON.parse(raw) as LogStore) : null;
+  } catch { return null; }
+}
+function writeLocal(store: LogStore): void {
+  try { localStorage.setItem(LOG_KEY, JSON.stringify(store)); } catch { /* ignore */ }
 }
 
-function exerciseTotal(s: StoredSchedule): number {
-  return s.sessions.reduce((a, sess) => a + sess.exercises.length, 0);
-}
+// ── Guardia anti-loop: al massimo una ricarica da sync ogni 20 s ──────────────
 
-/** scheduleId che possiede più serie loggate (reps > 0), o null. */
-function ownerScheduleId(log: LogStore): string | null {
-  const tally = new Map<string, number>();
-  for (const s of log.sessions) {
-    const sid = s.scheduleId ?? DEFAULT_SCHEDULE_ID;
-    const n = s.exercises.reduce((a, e) => a + e.sets.filter(x => x.reps > 0).length, 0);
-    if (n > 0) tally.set(sid, (tally.get(sid) ?? 0) + n);
-  }
-  let best: string | null = null, bestN = 0;
-  for (const [sid, n] of tally) if (n > bestN) { best = sid; bestN = n; }
-  return best;
-}
-
-/** Unione delle schede per id (preferendo la versione più completa). */
-function mergeSchedulesStore(
-  local: SchedulesStore | null,
-  remote: SchedulesStore | null,
-  mergedLog: LogStore,
-): SchedulesStore | null {
-  if (!local && !remote) return null;
-  const byId = new Map<string, StoredSchedule>();
-  // remote prima, local dopo → a parità vince il local (nomi locali)
-  for (const s of [...(remote?.list ?? []), ...(local?.list ?? [])]) {
-    const existing = byId.get(s.id);
-    if (!existing || exerciseTotal(s) > exerciseTotal(existing)) byId.set(s.id, s);
-  }
-  const list = Array.from(byId.values());
-
-  // activeId: la scheda che possiede più dati (se valida), poi l'active locale,
-  // poi la prima, poi default.
-  const owner = ownerScheduleId(mergedLog);
-  const valid = (id: string | null | undefined): id is string =>
-    !!id && (id === DEFAULT_SCHEDULE_ID || list.some(s => s.id === id));
-  const activeId = valid(owner) ? owner
-    : valid(local?.activeId) ? local!.activeId
-    : (list[0]?.id ?? DEFAULT_SCHEDULE_ID);
-
-  return { activeId, list };
-}
-
-/** Unione superficiale di due mappe (key→value). A parità vince il local. */
-function mergeKeyMaps(local: unknown, remote: unknown): unknown {
-  if (!local && !remote) return null;
-  const out: Record<string, unknown> = {};
-  if (remote && typeof remote === 'object') Object.assign(out, remote);
-  if (local  && typeof local  === 'object') Object.assign(out, local);
-  return out;
-}
-
-/** Merge di due bundle. `remoteRaw` può essere un bundle o un LogStore "nudo". */
-function mergeBundles(local: AppBackup, remoteRaw: unknown): AppBackup {
-  let remote: Partial<AppBackup> = {};
-  if (isBackupBundle(remoteRaw)) remote = remoteRaw as AppBackup;
-  else if (asLogStore(remoteRaw)) remote = { log: remoteRaw };
-
-  const localLog  = asLogStore(local.log) ?? { startDate: today(), sessions: [] };
-  const remoteLog = asLogStore(remote.log);
-  const mergedLog = remoteLog ? mergeStores(localLog, remoteLog) : localLog;
-
-  return {
-    version:    2,
-    exportedAt: new Date().toISOString(),
-    profileId:  local.profileId,
-    log:        mergedLog,
-    schedules:  mergeSchedulesStore(asSchedulesStore(local.schedules), asSchedulesStore(remote.schedules), mergedLog),
-    supersets:  mergeKeyMaps(local.supersets, remote.supersets),
-    swaps:      mergeKeyMaps(local.swaps, remote.swaps),
-  };
-}
-
-/** Firma stabile del bundle (esclude exportedAt) per rilevare cambi reali. */
-function bundleSig(b: AppBackup): string {
-  return JSON.stringify({ log: b.log, schedules: b.schedules, supersets: b.supersets, swaps: b.swaps });
-}
-
-/** Numero di sessioni nel log locale (per la salvaguardia "non pushare vuoto"). */
-function localSessionCount(): number {
-  const log = asLogStore(buildBackup().log);
-  return log ? log.sessions.length : 0;
+function reloadAllowed(): boolean {
+  try {
+    const k = 'arise-sync-reload-at';
+    const last = Number(sessionStorage.getItem(k) || '0');
+    if (Date.now() - last < 20_000) return false;
+    sessionStorage.setItem(k, String(Date.now()));
+    return true;
+  } catch { return true; }
 }
 
 // ── Tipi ─────────────────────────────────────────────────────────────────────
@@ -215,7 +116,7 @@ export type SyncStatus = 'disconnected' | 'idle' | 'syncing' | 'synced' | 'error
 
 export interface DriveSyncCtx {
   status:       SyncStatus;
-  username:     string | null;   // username GitHub dell'account connesso
+  username:     string | null;
   lastSync:     Date | null;
   error:        string | null;
   isConnected:  boolean;
@@ -246,12 +147,9 @@ export function DriveSyncProvider({ children }: { children: ReactNode }) {
   const pushTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const alive     = useRef(true);
 
-  useEffect(() => {
-    alive.current = true;
-    return () => { alive.current = false; };
-  }, []);
+  useEffect(() => { alive.current = true; return () => { alive.current = false; }; }, []);
 
-  // ── Pull + merge ──────────────────────────────────────────────────────────
+  // ── Pull + merge (log soltanto) ───────────────────────────────────────────
 
   const pullAndMerge = useCallback(async (): Promise<void> => {
     if (!alive.current) return;
@@ -261,31 +159,34 @@ export function DriveSyncProvider({ children }: { children: ReactNode }) {
       const remoteJson = await readFromGist();
       if (!alive.current) return;
 
-      const local = buildBackup();
+      const local = readLocal() ?? { startDate: new Date().toISOString().slice(0, 10), sessions: [] };
 
       if (remoteJson) {
-        let remoteRaw: unknown;
-        try { remoteRaw = JSON.parse(remoteJson); } catch { remoteRaw = null; }
+        let remoteRaw: unknown = null;
+        try { remoteRaw = JSON.parse(remoteJson); } catch { /* ignore */ }
+        const remoteLog = extractLog(remoteRaw);
 
-        const merged  = mergeBundles(local, remoteRaw);
-        const mergedJson = JSON.stringify(merged);
+        if (remoteLog) {
+          const merged = mergeStores(local, remoteLog);
+          const mJson = JSON.stringify(merged);
 
-        // Carica sul Gist il merge (così entrambi i dispositivi convergono)
-        await writeToGist(mergedJson);
+          // Aggiorna il Gist (log nudo) se il merge differisce dal remoto.
+          if (mJson !== JSON.stringify(remoteLog)) await writeToGist(mJson);
 
-        // Applica in locale solo se è cambiato qualcosa di sostanziale.
-        if (bundleSig(merged) !== bundleSig(local)) {
-          const isLogging = window.location.pathname.includes('/esercizio/')
-                         || window.location.pathname.includes('/superset/');
-          if (!isLogging) {
-            applyBackup(mergedJson);
-            window.location.reload();
-            return;
+          // Applica in locale + ricarica SOLO se il log locale è cambiato,
+          // e non più di una volta ogni 20 s (guardia anti-loop).
+          if (mJson !== JSON.stringify(local)) {
+            writeLocal(merged);
+            const isLogging = window.location.pathname.includes('/esercizio/')
+                           || window.location.pathname.includes('/superset/');
+            if (!isLogging && reloadAllowed()) { window.location.reload(); return; }
           }
+        } else if (local.sessions.length > 0) {
+          // Remoto non interpretabile: sovrascrivi col locale (se ha dati).
+          await writeToGist(JSON.stringify(local));
         }
-      } else {
-        // Nessun dato remoto: carica il locale (solo se ha sessioni reali).
-        if (localSessionCount() > 0) await writeToGist(JSON.stringify(local));
+      } else if (local.sessions.length > 0) {
+        await writeToGist(JSON.stringify(local));
       }
 
       if (alive.current) { setStatus('synced'); setLastSync(new Date()); }
@@ -297,23 +198,19 @@ export function DriveSyncProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  // ── Push ──────────────────────────────────────────────────────────────────
-  // Push SICURO: legge il remoto, fa il merge e ricarica il merge sul Gist
-  // SENZA toccare lo stato locale (non interrompe il logging in corso).
-  // Salvaguardia: se il locale non ha sessioni reali, non pusha (evita di
-  // sovrascrivere i dati dell'altro dispositivo con uno store vuoto).
+  // ── Push (merge remoto+locale, nessun reload, mai store vuoto) ─────────────
 
   const doPush = useCallback(async (): Promise<void> => {
     if (!isConnected() || !alive.current) return;
-    if (localSessionCount() === 0) return;
+    const local = readLocal();
+    if (!local || local.sessions.length === 0) return;
     setStatus('syncing');
     try {
-      const local = buildBackup();
       let remoteRaw: unknown = null;
       const remoteJson = await readFromGist();
       if (remoteJson) { try { remoteRaw = JSON.parse(remoteJson); } catch { /* ignore */ } }
-
-      const merged = mergeBundles(local, remoteRaw);
+      const remoteLog = extractLog(remoteRaw);
+      const merged = remoteLog ? mergeStores(local, remoteLog) : local;
       await writeToGist(JSON.stringify(merged));
       if (alive.current) { setStatus('synced'); setLastSync(new Date()); }
     } catch (e) {
@@ -339,22 +236,17 @@ export function DriveSyncProvider({ children }: { children: ReactNode }) {
     };
   }, [doPush]);
 
-  // ── Pull all'avvio se già connesso ────────────────────────────────────────
+  // ── Pull all'avvio se connesso ────────────────────────────────────────────
 
   useEffect(() => {
     if (isConnected()) pullAndMerge();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // ── Pull quando l'app torna in foreground ─────────────────────────────────
-  // Cattura sia il ritorno dalla schermata Home (PWA mobile) sia il cambio
-  // di tab su browser desktop → garantisce che il PC veda i dati del telefono
-  // non appena l'utente riaprirà la scheda.
+  // ── Pull al ritorno in foreground ─────────────────────────────────────────
 
   useEffect(() => {
-    const onVisible = () => {
-      if (!document.hidden && isConnected()) pullAndMerge();
-    };
+    const onVisible = () => { if (!document.hidden && isConnected()) pullAndMerge(); };
     document.addEventListener('visibilitychange', onVisible);
     return () => document.removeEventListener('visibilitychange', onVisible);
   }, [pullAndMerge]);

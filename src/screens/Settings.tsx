@@ -23,7 +23,7 @@ import { listGistRevisions, readGistRevision, type GistRevisionInfo } from '../l
 // Caricamento lazy di xlsx — riduce il bundle iniziale (xlsx ~500KB raw)
 const excelLib = () => import('../lib/excel');
 
-const APP_VERSION = '0.5.0';
+const APP_VERSION = '0.5.1';
 
 // ── Sezione wrapper ───────────────────────────────────────────────────────────
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
