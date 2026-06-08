@@ -11,7 +11,7 @@ import { useLogStore }        from '../hooks/useLogStore';
 import { useCurrentSession }  from '../hooks/useCurrentSession';
 import { useProfileStore }    from '../hooks/useProfileStore';
 import { useProgramData } from '../hooks/useProgramData';
-import { addSchedule, deleteSchedule, switchSchedule, renameSchedule, hasDefaultProgramData, DEFAULT_SCHEDULE_ID } from '../lib/schedules';
+import { setCustomSchedule, removeCustomSchedule, switchSchedule, renameCustomSchedule, DEFAULT_SCHEDULE_ID, CUSTOM_SCHEDULE_ID } from '../lib/schedules';
 import { useToast }           from '../hooks/useToast';
 import { ToastStack }         from '../components/Toast';
 import { ConfirmDialog }      from '../components/ConfirmDialog';
@@ -23,7 +23,7 @@ import { listGistRevisions, readGistRevision, type GistRevisionInfo } from '../l
 // Caricamento lazy di xlsx — riduce il bundle iniziale (xlsx ~500KB raw)
 const excelLib = () => import('../lib/excel');
 
-const APP_VERSION = '0.4.0';
+const APP_VERSION = '0.5.0';
 
 // ── Sezione wrapper ───────────────────────────────────────────────────────────
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
@@ -129,9 +129,6 @@ export function Settings() {
   const program = useProgramData();
   const [autoRest, setAutoRest] = usePref('autoRest');
 
-  // "Predefinita" compare nell'elenco solo se ha log registrati.
-  const showDefaultSchedule = hasDefaultProgramData(store.sessions);
-
   const drive = useDriveSync();
   const [tokenInput, setTokenInput] = useState('');
   const [showTokenField, setShowTokenField] = useState(false);
@@ -140,11 +137,10 @@ export function Settings() {
   const [restoreList, setRestoreList] = useState<GistRevisionInfo[] | null>(null);
   const [restoreBusy, setRestoreBusy] = useState(false);
 
-  const [dialog, setDialog] = useState<'reset-meso' | 'reset-all' | 'del-profile' | null>(null);
+  const [dialog, setDialog] = useState<'reset-meso' | 'reset-all' | 'del-profile' | 'remove-schedule' | null>(null);
   const [newProfileName, setNewProfileName] = useState('');
   const [showNewProfile, setShowNewProfile] = useState(false);
-  const [scheduleToDelete, setScheduleToDelete] = useState<{ id: string; name: string } | null>(null);
-  const [renamingId, setRenamingId] = useState<string | null>(null);
+  const [renamingProgram, setRenamingProgram] = useState(false);
   const [renameValue, setRenameValue] = useState('');
 
   // ── Export ────────────────────────────────────────────────────────────────────
@@ -195,6 +191,24 @@ export function Settings() {
     setTimeout(() => window.location.reload(), 600);
   }
 
+  // ── Forza aggiornamento app (svuota cache + ricarica) ─────────────────────────
+  // Le PWA su iOS a volte restano su una versione vecchia in cache: questo
+  // pulsante svuota le cache del service worker e ricarica da rete.
+  async function handleForceUpdate() {
+    show('Aggiornamento in corso…', 'ok');
+    try {
+      if ('serviceWorker' in navigator) {
+        const regs = await navigator.serviceWorker.getRegistrations();
+        await Promise.all(regs.map(r => r.update()));
+      }
+      if ('caches' in window) {
+        const keys = await caches.keys();
+        await Promise.all(keys.map(k => caches.delete(k)));
+      }
+    } catch { /* ignore */ }
+    setTimeout(() => window.location.reload(), 400);
+  }
+
   // ── Ripristino da GitHub: elenca le revisioni del Gist (niente copia-incolla) ──
   function openRestore() {
     setRestoreBusy(true);
@@ -224,12 +238,12 @@ export function Settings() {
   function handleExcelImport(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
-    const scheduleName = file.name.replace(/\.[^.]+$/, '').slice(0, 40) || 'Nuova scheda';
+    const scheduleName = file.name.replace(/\.[^.]+$/, '').slice(0, 40) || 'La mia scheda';
     excelLib()
       .then(({ parseScheduleFile }) => parseScheduleFile(file))
       .then(({ sessions }) => {
-        // Aggiunge una NUOVA scheda (non sostituisce) e la attiva (con reload)
-        addSchedule(scheduleName, sessions);
+        // Imposta/SOSTITUISCE l'unico programma personalizzato (id 'sched-1').
+        setCustomSchedule(scheduleName, sessions);
       })
       .catch(err => show(`Errore importazione: ${String(err)}`, 'err'));
     e.target.value = '';
@@ -374,123 +388,114 @@ export function Settings() {
           </p>
         </Section>
 
-        {/* ── Schede di allenamento (Excel) ──────────────────────────────────── */}
-        <Section title="Schede di allenamento">
+        {/* ── Programma di allenamento ───────────────────────────────────────── */}
+        <Section title="Programma di allenamento">
           <p className="text-xs text-[var(--sl-text-dim)] px-1 -mt-1">
-            Più schede per profilo. Esercizi e volume seguono la scheda attiva;
-            Status, peso e achievement restano cumulativi.
+            Un solo programma per profilo. Carichi il tuo Excel e diventa il
+            programma attivo; ricaricarlo lo aggiorna senza perdere i log.
           </p>
 
-          {/* Lista schede */}
-          {program.schedules.length === 0 && !showDefaultSchedule && (
-            <div className="px-4 py-3 sl-panel rounded-2xl">
-              <p className="text-xs text-slate-400">
-                Nessuna scheda. Carica un file Excel qui sotto per iniziare.
-              </p>
-            </div>
-          )}
+          {(() => {
+            const custom     = program.schedules[0]; // al massimo uno (id 'sched-1')
+            const usingCustom = program.activeScheduleId === CUSTOM_SCHEDULE_ID && !!custom;
 
-          {/* Programma predefinito — mostrato solo se ha dati registrati,
-              così quei log restano sempre raggiungibili. Non rinominabile/eliminabile. */}
-          {showDefaultSchedule && (() => {
-            const isActive = program.activeScheduleId === DEFAULT_SCHEDULE_ID;
             return (
-              <div className={[
-                'flex items-center gap-2 px-4 py-3 rounded-2xl border',
-                isActive
-                  ? 'bg-[rgba(139,92,255,0.12)] border-[var(--sl-violet)] shadow-[0_0_12px_var(--sl-glow-violet)]'
-                  : 'sl-panel',
-              ].join(' ')}>
-                <FileSpreadsheet size={16} className={isActive ? 'text-[var(--sl-violet-soft)] shrink-0' : 'text-[var(--sl-text-dim)] shrink-0'} />
-                <span className="flex-1 min-w-0 text-sm font-semibold text-slate-100 truncate">Predefinita</span>
-                {isActive
-                  ? <span className="sl-label text-[9px] text-[var(--sl-violet-soft)] shrink-0">attiva</span>
-                  : <button onClick={() => switchSchedule(DEFAULT_SCHEDULE_ID)} className="text-xs text-[var(--sl-cyan)] underline min-h-[44px] px-1 shrink-0">Attiva</button>}
-              </div>
-            );
-          })()}
-
-          {program.schedules.map(sch => {
-            const isActive   = sch.id === program.activeScheduleId;
-            const isRenaming = renamingId === sch.id;
-            return (
-              <div key={sch.id} className={[
-                'px-4 py-3 rounded-2xl border space-y-2.5',
-                isActive
-                  ? 'bg-[rgba(139,92,255,0.12)] border-[var(--sl-violet)] shadow-[0_0_12px_var(--sl-glow-violet)]'
-                  : 'sl-panel',
-              ].join(' ')}>
-                {/* Riga 1: nome + stato */}
+              <div className="sl-panel rounded-2xl px-4 py-4 space-y-3">
+                {/* Stato attuale */}
                 <div className="flex items-center gap-2">
-                  <FileSpreadsheet size={16} className={isActive ? 'text-[var(--sl-violet-soft)] shrink-0' : 'text-[var(--sl-text-dim)] shrink-0'} />
-                  {isRenaming ? (
+                  <FileSpreadsheet size={16} className="text-[var(--sl-cyan-soft)] shrink-0" />
+                  {renamingProgram && custom ? (
                     <input
                       autoFocus
                       value={renameValue}
                       onChange={e => setRenameValue(e.target.value)}
                       onKeyDown={e => {
-                        if (e.key === 'Enter' && renameValue.trim()) renameSchedule(sch.id, renameValue);
-                        if (e.key === 'Escape') setRenamingId(null);
+                        if (e.key === 'Enter' && renameValue.trim()) renameCustomSchedule(renameValue);
+                        if (e.key === 'Escape') setRenamingProgram(false);
                       }}
                       maxLength={40}
                       className="flex-1 min-w-0 bg-[rgba(6,10,20,0.85)] border border-[var(--sl-line)] rounded-lg px-2 py-2 text-sm text-slate-100 focus:outline-none focus:border-[var(--sl-cyan)]"
                     />
                   ) : (
-                    <span className="flex-1 min-w-0 text-sm font-semibold text-slate-100 truncate">{sch.name}</span>
+                    <span className="flex-1 min-w-0 text-sm font-semibold text-slate-100 truncate">
+                      {usingCustom ? custom!.name : 'Programma predefinito'}
+                    </span>
                   )}
-                  {isActive && !isRenaming && (
-                    <span className="sl-label text-[9px] text-[var(--sl-violet-soft)] shrink-0">attiva</span>
-                  )}
+                  <span className="sl-label text-[9px] text-[var(--sl-cyan-soft)] shrink-0">attivo</span>
                 </div>
 
-                {/* Riga 2: azioni — touch target ≥44px, etichette chiare */}
-                {isRenaming ? (
+                {renamingProgram && custom ? (
                   <div className="flex gap-2">
                     <button
-                      onClick={() => { if (renameValue.trim()) renameSchedule(sch.id, renameValue); }}
+                      onClick={() => { if (renameValue.trim()) renameCustomSchedule(renameValue); }}
                       className="flex-1 h-11 flex items-center justify-center gap-1.5 rounded-xl bg-[var(--sl-cyan)] text-[#06121e] text-xs font-bold"
                     >
-                      <Check size={15} strokeWidth={3} /> Salva
+                      <Check size={15} strokeWidth={3} /> Salva nome
                     </button>
                     <button
-                      onClick={() => setRenamingId(null)}
+                      onClick={() => setRenamingProgram(false)}
                       className="px-4 h-11 flex items-center justify-center rounded-xl text-[var(--sl-text-dim)] border border-[var(--sl-line)] text-xs font-semibold"
                     >
                       Annulla
                     </button>
                   </div>
-                ) : (
-                  <div className="flex gap-2">
-                    {!isActive && (
+                ) : custom ? (
+                  <>
+                    {/* Toggle Predefinito / La mia scheda */}
+                    <div className="flex gap-2">
                       <button
-                        onClick={() => switchSchedule(sch.id)}
-                        className="flex-1 h-11 flex items-center justify-center rounded-xl bg-[rgba(139,92,255,0.16)] border border-[var(--sl-violet)] text-[var(--sl-violet-soft)] text-xs font-bold active:brightness-110"
+                        onClick={() => { if (usingCustom) switchSchedule(DEFAULT_SCHEDULE_ID); }}
+                        className={[
+                          'flex-1 h-11 flex items-center justify-center rounded-xl text-xs font-bold border',
+                          !usingCustom
+                            ? 'bg-[var(--sl-cyan)] text-[#06121e] border-[var(--sl-cyan-soft)]'
+                            : 'border-[var(--sl-line)] text-slate-300 active:bg-[rgba(56,225,255,0.1)]',
+                        ].join(' ')}
                       >
-                        Attiva
+                        Predefinito
                       </button>
-                    )}
-                    <button
-                      onClick={() => { setRenamingId(sch.id); setRenameValue(sch.name); }}
-                      className="flex-1 h-11 flex items-center justify-center gap-1.5 rounded-xl border border-[var(--sl-line)] text-slate-300 text-xs font-semibold active:bg-[rgba(56,225,255,0.1)]"
-                    >
-                      <Pencil size={13} /> Rinomina
-                    </button>
-                    <button
-                      onClick={() => setScheduleToDelete({ id: sch.id, name: sch.name })}
-                      className="flex-1 h-11 flex items-center justify-center gap-1.5 rounded-xl border border-rose-800/60 text-rose-400 text-xs font-semibold active:bg-rose-900/40"
-                    >
-                      <Trash2 size={13} /> Elimina
-                    </button>
-                  </div>
+                      <button
+                        onClick={() => { if (!usingCustom) switchSchedule(CUSTOM_SCHEDULE_ID); }}
+                        className={[
+                          'flex-1 h-11 flex items-center justify-center rounded-xl text-xs font-bold border',
+                          usingCustom
+                            ? 'bg-[var(--sl-cyan)] text-[#06121e] border-[var(--sl-cyan-soft)]'
+                            : 'border-[var(--sl-line)] text-slate-300 active:bg-[rgba(56,225,255,0.1)]',
+                        ].join(' ')}
+                      >
+                        La mia scheda
+                      </button>
+                    </div>
+                    {/* Rinomina / Rimuovi */}
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => { setRenameValue(custom.name); setRenamingProgram(true); }}
+                        className="flex-1 h-11 flex items-center justify-center gap-1.5 rounded-xl border border-[var(--sl-line)] text-slate-300 text-xs font-semibold active:bg-[rgba(56,225,255,0.1)]"
+                      >
+                        <Pencil size={13} /> Rinomina
+                      </button>
+                      <button
+                        onClick={() => setDialog('remove-schedule')}
+                        className="flex-1 h-11 flex items-center justify-center gap-1.5 rounded-xl border border-rose-800/60 text-rose-400 text-xs font-semibold active:bg-rose-900/40"
+                      >
+                        <Trash2 size={13} /> Rimuovi
+                      </button>
+                    </div>
+                  </>
+                ) : (
+                  <p className="text-xs text-slate-400">
+                    Stai usando il programma predefinito. Carica un Excel qui sotto
+                    per usare la tua scheda.
+                  </p>
                 )}
               </div>
             );
-          })}
+          })()}
 
           <ActionRow
             icon={<Upload size={18} className="text-indigo-400 shrink-0" />}
-            label="Aggiungi scheda (.xlsx)"
-            sublabel="Carica un nuovo file: diventa la scheda attiva"
+            label={program.schedules.length > 0 ? 'Sostituisci la mia scheda (.xlsx)' : 'Carica la mia scheda (.xlsx)'}
+            sublabel="I log già registrati restano agganciati"
             onClick={() => excelImportRef.current?.click()}
           />
           <ActionRow
@@ -727,6 +732,12 @@ export function Settings() {
         {/* ── Info ───────────────────────────────────────────────────────────── */}
         <Section title="Info">
           <InfoRow label="Versione"        value={APP_VERSION} />
+          <ActionRow
+            icon={<RefreshCw size={18} className="text-[var(--sl-cyan)] shrink-0" />}
+            label="Aggiorna app ora"
+            sublabel="Svuota la cache e scarica l'ultima versione"
+            onClick={handleForceUpdate}
+          />
           <InfoRow label="Storage"         value="localStorage (offline)" />
           <InfoRow label="Dati sul server" value="Nessuno" />
 
@@ -893,13 +904,13 @@ export function Settings() {
       />
 
       <ConfirmDialog
-        open={scheduleToDelete !== null}
-        title={`Eliminare la scheda "${scheduleToDelete?.name}"?`}
-        description="La scheda viene rimossa. I log restano nello storico ma il loro volume non sarà più mostrato in Volume."
-        confirmLabel="Elimina scheda"
+        open={dialog === 'remove-schedule'}
+        title="Rimuovere la tua scheda?"
+        description="Tornerai al programma predefinito. I log restano salvati e riappariranno se ricarichi la stessa scheda."
+        confirmLabel="Rimuovi scheda"
         danger
-        onConfirm={() => { if (scheduleToDelete) deleteSchedule(scheduleToDelete.id); }}
-        onCancel={() => setScheduleToDelete(null)}
+        onConfirm={() => { setDialog(null); removeCustomSchedule(); }}
+        onCancel={() => setDialog(null)}
       />
 
       <ConfirmDialog

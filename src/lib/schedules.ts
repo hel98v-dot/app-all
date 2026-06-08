@@ -12,6 +12,10 @@ export interface StoredSchedule { id: string; name: string; sessions: Session[];
 export interface SchedulesStore { activeId: string; list: StoredSchedule[]; }
 
 export const DEFAULT_SCHEDULE_ID = 'default';
+// Modello SEMPLIFICATO: un solo programma personalizzato per profilo, con id
+// canonico fisso. Niente più liste di schede multiple → niente proliferazione,
+// niente orfani da id che cambiano, re-import = sostituzione dello stesso id.
+export const CUSTOM_SCHEDULE_ID = 'sched-1';
 
 function activeProfileId(): string {
   try {
@@ -95,6 +99,60 @@ function scheduleHasLogs(pid: string, scheduleId: string): boolean {
   } catch { return false; }
 }
 
+/** Ri-tagga tutti i log custom (scheduleId ≠ 'default') sull'id canonico 'sched-1'. */
+function retagCustomLogsToSingle(pid: string): void {
+  try {
+    const raw = localStorage.getItem(logKeyFor(pid));
+    if (!raw) return;
+    const log = JSON.parse(raw) as { sessions?: SessionLog[] };
+    if (!Array.isArray(log.sessions)) return;
+    let changed = false;
+    for (const s of log.sessions) {
+      const sid = s.scheduleId ?? DEFAULT_SCHEDULE_ID;
+      if (sid !== DEFAULT_SCHEDULE_ID && sid !== CUSTOM_SCHEDULE_ID) {
+        s.scheduleId = CUSTOM_SCHEDULE_ID;
+        changed = true;
+      }
+    }
+    if (changed) localStorage.setItem(logKeyFor(pid), JSON.stringify(log));
+  } catch { /* ignore */ }
+}
+
+/**
+ * MIGRAZIONE al modello "un solo programma per profilo".
+ * Se esistono più schede custom (vecchio modello), le collassa in UNA con id
+ * canonico 'sched-1', conservando la definizione di quella con più dati loggati
+ * e ri-taggando tutti i log custom su 'sched-1'. Da chiamare UNA volta all'avvio,
+ * prima di reconcileActiveProfile(). Idempotente.
+ */
+export function collapseToSingleCustomSchedule(): void {
+  const pid = activeProfileId();
+  const sched = readRaw(pid);
+  if (!sched) return;
+  const customs = sched.list;
+  if (customs.length === 0) return; // niente da collassare
+
+  // Scegli la definizione da conservare: quella con più log, poi l'attiva, poi la prima.
+  const owner = scheduleIdWithMostLogs(pid);
+  const keeper =
+    customs.find(s => s.id === owner) ??
+    customs.find(s => s.id === sched.activeId) ??
+    customs[0]!;
+
+  // Unifica i tag dei log custom su 'sched-1'.
+  retagCustomLogsToSingle(pid);
+
+  const single: StoredSchedule = { ...keeper, id: CUSTOM_SCHEDULE_ID };
+  const activeWasCustom = sched.activeId !== DEFAULT_SCHEDULE_ID;
+  const newActive = activeWasCustom ? CUSTOM_SCHEDULE_ID : sched.activeId;
+
+  const needsRewrite =
+    customs.length > 1 || keeper.id !== CUSTOM_SCHEDULE_ID || sched.activeId !== newActive;
+  if (needsRewrite) {
+    writeRaw(pid, { activeId: newActive, list: [single] });
+  }
+}
+
 /**
  * Riconciliazione dei dati del profilo attivo, da chiamare UNA volta all'avvio.
  * È il cuore della robustezza contro i dati "invisibili":
@@ -109,7 +167,9 @@ export function reconcileActiveProfile(): void {
   const pid = activeProfileId();
   const sched = readRaw(pid);
   const listIds = sched?.list.map(s => s.id) ?? [];
-  const validIds = new Set<string>([DEFAULT_SCHEDULE_ID, ...listIds]);
+  // 'default' e 'sched-1' sono SEMPRE id validi (i due unici possibili nel
+  // modello a programma singolo): così i log custom non diventano mai orfani.
+  const validIds = new Set<string>([DEFAULT_SCHEDULE_ID, CUSTOM_SCHEDULE_ID, ...listIds]);
 
   const logRaw = localStorage.getItem(logKeyFor(pid));
   if (!logRaw) return;
@@ -117,11 +177,10 @@ export function reconcileActiveProfile(): void {
   try { log = JSON.parse(logRaw); } catch { return; }
   if (!Array.isArray(log.sessions)) return;
 
-  // 1. Bersaglio per i log orfani: l'unica scheda custom se esiste, altrimenti
-  //    la scheda attiva (sempre valida), altrimenti default.
-  const retagTarget =
-    listIds.length === 1 ? listIds[0]!
-    : (sched && validIds.has(sched.activeId) ? sched.activeId : DEFAULT_SCHEDULE_ID);
+  // 1. Bersaglio per i log orfani: se esiste un programma custom → 'sched-1'
+  //    (i log orfani sono dati custom), altrimenti → 'default'.
+  const hasCustom = listIds.length > 0;
+  const retagTarget = hasCustom ? CUSTOM_SCHEDULE_ID : DEFAULT_SCHEDULE_ID;
 
   let changed = false;
   for (const s of log.sessions) {
@@ -142,7 +201,12 @@ export function reconcileActiveProfile(): void {
 
     if (!skip && !scheduleHasLogs(pid, sched.activeId)) {
       const owner = scheduleIdWithMostLogs(pid);
-      if (owner && owner !== sched.activeId && validIds.has(owner)) {
+      // Attiva la scheda-proprietaria SOLO se è realmente mostrabile: 'default'
+      // oppure una scheda con definizione presente. Non attiviamo 'sched-1' se
+      // manca la sua definizione (i suoi log restano comunque taggati, pronti a
+      // ricomparire quando si ricarica l'Excel).
+      const activatable = owner === DEFAULT_SCHEDULE_ID || listIds.includes(owner ?? '');
+      if (owner && owner !== sched.activeId && activatable) {
         sched.activeId = owner;
         writeRaw(pid, sched);
       }
@@ -257,46 +321,45 @@ export function switchSchedule(id: string): void {
   window.location.reload();
 }
 
-export function addSchedule(name: string, sessions: Session[]): void {
+// ── API programma singolo ─────────────────────────────────────────────────────
+
+/**
+ * Imposta (o SOSTITUISCE) il programma personalizzato del profilo.
+ * Usa sempre l'id canonico 'sched-1': re-importare lo stesso programma non crea
+ * duplicati e i log già registrati restano agganciati.
+ */
+export function setCustomSchedule(name: string, sessions: Session[]): void {
   const pid = activeProfileId();
   const store = readRaw(pid) ?? { activeId: DEFAULT_SCHEDULE_ID, list: [] };
-  const ids = new Set(store.list.map(s => s.id));
-  let n = store.list.length + 1;
-  let id = `sched-${n}`;
-  while (ids.has(id)) { n++; id = `sched-${n}`; }
-  store.list.push({ id, name: name.trim() || `Scheda ${n}`, sessions: repairSessions(sessions) });
-  store.activeId = id;
+  store.list = [{
+    id: CUSTOM_SCHEDULE_ID,
+    name: name.trim() || 'La mia scheda',
+    sessions: repairSessions(sessions),
+  }];
+  store.activeId = CUSTOM_SCHEDULE_ID;
   writeRaw(pid, store);
-  seedSupersetsFromProgram(sessions); // pre-abbina i superset definiti nella scheda
-  // Scheda appena aggiunta e attivata: la riconciliazione non deve spostarla.
+  seedSupersetsFromProgram(sessions);
   try { sessionStorage.setItem('arise-skip-heal', '1'); } catch { /* ignore */ }
   window.location.reload();
 }
 
-export function deleteSchedule(id: string): void {
+/** Rimuove il programma personalizzato e torna al predefinito (i log restano). */
+export function removeCustomSchedule(): void {
   const pid = activeProfileId();
-  // readRaw può restituire null se lo store è leggermente malformato: in tal
-  // caso ricostruiamo da readSchedules() così l'eliminazione non fallisce mai.
-  const store = readRaw(pid) ?? readSchedules();
-  store.list = store.list.filter(s => s.id !== id);
-  if (store.activeId === id) {
-    // Eliminata la scheda attiva: passa alla scheda (ancora esistente) con più
-    // dati loggati, altrimenti alla prima, altrimenti al programma predefinito.
-    const owner = scheduleIdWithMostLogs(pid);
-    const ownerStillValid = owner != null && store.list.some(s => s.id === owner);
-    store.activeId = ownerStillValid ? owner! : (store.list[0]?.id ?? DEFAULT_SCHEDULE_ID);
-  }
+  const store = readRaw(pid) ?? { activeId: DEFAULT_SCHEDULE_ID, list: [] };
+  store.list = [];
+  store.activeId = DEFAULT_SCHEDULE_ID;
   writeRaw(pid, store);
+  try { sessionStorage.setItem('arise-skip-heal', '1'); } catch { /* ignore */ }
   window.location.reload();
 }
 
-export function renameSchedule(id: string, name: string): void {
+/** Rinomina il programma personalizzato. */
+export function renameCustomSchedule(name: string): void {
   const pid = activeProfileId();
   const store = readRaw(pid);
-  if (!store) return;
-  const sch = store.list.find(s => s.id === id);
-  if (!sch) return;
-  sch.name = name.trim().slice(0, 40) || sch.name;
+  if (!store || store.list.length === 0) return;
+  store.list[0]!.name = name.trim().slice(0, 40) || store.list[0]!.name;
   writeRaw(pid, store);
   window.location.reload();
 }

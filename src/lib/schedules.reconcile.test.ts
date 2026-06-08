@@ -3,7 +3,7 @@
 // invisibili, e l'utente deve atterrare sulla scheda che possiede i suoi dati.
 
 import { beforeEach, describe, expect, it } from 'vitest';
-import { reconcileActiveProfile } from './schedules';
+import { reconcileActiveProfile, collapseToSingleCustomSchedule } from './schedules';
 
 // ── Mock localStorage / sessionStorage ────────────────────────────────────────
 class MemStorage {
@@ -82,9 +82,22 @@ describe('reconcileActiveProfile', () => {
     expect(getActive()).toBe('sched-2');       // resta dove l'utente l'ha messa
   });
 
-  it('D) senza schede custom, i log orfani finiscono su default e restano visibili', () => {
-    setSchedules('default', []);               // nessuna scheda custom
-    setLog([sessionWith('sched-1')]);          // orfano (nessuna definizione)
+  it('D) senza definizione custom, i log sched-1 restano taggati (pronti al re-import) e l\'attiva resta default', () => {
+    setSchedules('default', []);               // nessuna definizione custom
+    setLog([sessionWith('sched-1')]);          // dati custom senza programma caricato
+
+    reconcileActiveProfile();
+
+    // 'sched-1' è un id canonico: i log NON vengono dirottati su default, così
+    // ricaricando l'Excel ricompaiono. L'attiva resta default (niente programma
+    // fantasma da mostrare).
+    expect(getLog().sessions[0].scheduleId).toBe('sched-1');
+    expect(getActive()).toBe('default');
+  });
+
+  it('D2) un id davvero orfano (sched-9) viene dirottato su default se non c\'è custom', () => {
+    setSchedules('default', []);
+    setLog([sessionWith('sched-9')]);          // id non canonico, nessuna scheda
 
     reconcileActiveProfile();
 
@@ -104,5 +117,48 @@ describe('reconcileActiveProfile', () => {
 
     expect(localStorage.getItem(LOG_KEY)).toBe(after1);
     expect(getActive()).toBe(active1);
+  });
+});
+
+describe('collapseToSingleCustomSchedule (modello programma singolo)', () => {
+  it('collassa più schede in una sola (id sched-1), tenendo quella con più dati', () => {
+    setSchedules('sched-2', [{ id: 'sched-1', name: 'A' }, { id: 'sched-2', name: 'B' }]);
+    // sched-2 ha 2 sessioni loggate, sched-1 solo 1 → keeper = B (più dati)
+    setLog([
+      sessionWith('sched-1'),
+      { ...sessionWith('sched-2'), date: '2026-06-03' },
+      { ...sessionWith('sched-2'), date: '2026-06-04' },
+    ]);
+
+    collapseToSingleCustomSchedule();
+
+    const sched = JSON.parse(localStorage.getItem(SCHED_KEY)!);
+    expect(sched.list.length).toBe(1);
+    expect(sched.list[0].id).toBe('sched-1');     // id canonico
+    expect(sched.list[0].name).toBe('B');         // definizione con più dati
+    expect(sched.activeId).toBe('sched-1');
+    for (const s of getLog().sessions) expect(s.scheduleId).toBe('sched-1');
+  });
+
+  it('è idempotente con una sola scheda già sched-1', () => {
+    setSchedules('sched-1', [{ id: 'sched-1', name: 'Mia' }]);
+    setLog([sessionWith('sched-1')]);
+    const before = localStorage.getItem(SCHED_KEY);
+
+    collapseToSingleCustomSchedule();
+
+    expect(localStorage.getItem(SCHED_KEY)).toBe(before);
+  });
+
+  it('normalizza una singola scheda con id non canonico (sched-2 → sched-1)', () => {
+    setSchedules('sched-2', [{ id: 'sched-2', name: 'Solo' }]);
+    setLog([sessionWith('sched-2')]);
+
+    collapseToSingleCustomSchedule();
+
+    const sched = JSON.parse(localStorage.getItem(SCHED_KEY)!);
+    expect(sched.list[0].id).toBe('sched-1');
+    expect(sched.activeId).toBe('sched-1');
+    expect(getLog().sessions[0].scheduleId).toBe('sched-1');
   });
 });
