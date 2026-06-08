@@ -81,6 +81,75 @@ function scheduleIdWithMostLogs(pid: string): string | null {
   } catch { return null; }
 }
 
+/** True se la scheda data ha almeno 1 serie loggata (reps > 0). */
+function scheduleHasLogs(pid: string, scheduleId: string): boolean {
+  try {
+    const raw = localStorage.getItem(logKeyFor(pid));
+    if (!raw) return false;
+    const store = JSON.parse(raw) as { sessions?: RawSession[] };
+    if (!Array.isArray(store?.sessions)) return false;
+    return store.sessions.some(
+      s => (s.scheduleId ?? DEFAULT_SCHEDULE_ID) === scheduleId
+        && s.exercises.some(e => e.sets.some(set => set.reps > 0)),
+    );
+  } catch { return false; }
+}
+
+/**
+ * Riconciliazione dei dati del profilo attivo, da chiamare UNA volta all'avvio.
+ * È il cuore della robustezza contro i dati "invisibili":
+ *  1. Ri-tagga i log ORFANI (scheduleId che non corrisponde ad alcuna scheda)
+ *     assegnandoli alla scheda giusta, così non spariscono mai dalla vista.
+ *  2. Se la scheda attiva è VUOTA ma un'altra scheda valida possiede dati,
+ *     attiva quest'ultima → l'utente atterra direttamente sui propri allenamenti.
+ * Un flag di sessione ('arise-skip-heal') evita di annullare l'attivazione di
+ * una scheda appena scelta/aggiunta dall'utente.
+ */
+export function reconcileActiveProfile(): void {
+  const pid = activeProfileId();
+  const sched = readRaw(pid);
+  const listIds = sched?.list.map(s => s.id) ?? [];
+  const validIds = new Set<string>([DEFAULT_SCHEDULE_ID, ...listIds]);
+
+  const logRaw = localStorage.getItem(logKeyFor(pid));
+  if (!logRaw) return;
+  let log: { startDate?: string; sessions?: SessionLog[] };
+  try { log = JSON.parse(logRaw); } catch { return; }
+  if (!Array.isArray(log.sessions)) return;
+
+  // 1. Bersaglio per i log orfani: l'unica scheda custom se esiste, altrimenti
+  //    la scheda attiva (sempre valida), altrimenti default.
+  const retagTarget =
+    listIds.length === 1 ? listIds[0]!
+    : (sched && validIds.has(sched.activeId) ? sched.activeId : DEFAULT_SCHEDULE_ID);
+
+  let changed = false;
+  for (const s of log.sessions) {
+    const sid = s.scheduleId ?? DEFAULT_SCHEDULE_ID;
+    if (!validIds.has(sid)) { s.scheduleId = retagTarget; changed = true; }
+  }
+  if (changed) {
+    try { localStorage.setItem(logKeyFor(pid), JSON.stringify(log)); } catch { /* ignore */ }
+  }
+
+  // 2. Heal della scheda attiva (solo se è vuota e un'altra possiede dati).
+  if (sched) {
+    let skip = false;
+    try {
+      skip = sessionStorage.getItem('arise-skip-heal') === '1';
+      sessionStorage.removeItem('arise-skip-heal');
+    } catch { /* ignore */ }
+
+    if (!skip && !scheduleHasLogs(pid, sched.activeId)) {
+      const owner = scheduleIdWithMostLogs(pid);
+      if (owner && owner !== sched.activeId && validIds.has(owner)) {
+        sched.activeId = owner;
+        writeRaw(pid, sched);
+      }
+    }
+  }
+}
+
 /** Tagga (una volta) i log senza scheduleId con l'id dato. */
 function migrateLogScheduleIds(pid: string, scheduleId: string): void {
   try {
@@ -181,6 +250,10 @@ export function switchSchedule(id: string): void {
   const store = readRaw(pid) ?? { activeId: DEFAULT_SCHEDULE_ID, list: [] };
   store.activeId = id;
   writeRaw(pid, store);
+  // L'utente ha scelto esplicitamente questa scheda: non farti "ricorreggere"
+  // dalla riconciliazione all'avvio (che altrimenti tornerebbe sulla scheda
+  // con più dati se questa è vuota).
+  try { sessionStorage.setItem('arise-skip-heal', '1'); } catch { /* ignore */ }
   window.location.reload();
 }
 
@@ -195,6 +268,8 @@ export function addSchedule(name: string, sessions: Session[]): void {
   store.activeId = id;
   writeRaw(pid, store);
   seedSupersetsFromProgram(sessions); // pre-abbina i superset definiti nella scheda
+  // Scheda appena aggiunta e attivata: la riconciliazione non deve spostarla.
+  try { sessionStorage.setItem('arise-skip-heal', '1'); } catch { /* ignore */ }
   window.location.reload();
 }
 

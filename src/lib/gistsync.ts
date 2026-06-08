@@ -136,3 +136,57 @@ export async function verifyToken(): Promise<string> {
   const user = await res.json() as { login: string };
   return user.login; // username GitHub
 }
+
+// ── Revisioni del Gist (recupero senza copia-incolla) ─────────────────────────
+// GitHub conserva lo storico delle revisioni del Gist: possiamo elencarle e
+// ripristinare quella con i dati buoni anche se l'ultima versione è vuota.
+
+export interface GistRevisionInfo {
+  sha:          string;
+  date:         string;   // ISO
+  sessionCount: number;
+  loggedSets:   number;
+}
+
+function statsOf(content: string | null): { sessionCount: number; loggedSets: number } {
+  if (!content) return { sessionCount: 0, loggedSets: 0 };
+  try {
+    const j = JSON.parse(content) as { sessions?: unknown; log?: { sessions?: unknown } };
+    const sessions = (Array.isArray(j.sessions) ? j.sessions
+      : Array.isArray(j.log?.sessions) ? (j.log!.sessions as unknown[])
+      : []) as Array<{ exercises?: Array<{ sets?: Array<{ reps?: number }> }> }>;
+    let loggedSets = 0;
+    for (const s of sessions) {
+      for (const e of s.exercises ?? []) {
+        for (const set of e.sets ?? []) if ((set.reps ?? 0) > 0) loggedSets++;
+      }
+    }
+    return { sessionCount: sessions.length, loggedSets };
+  } catch { return { sessionCount: 0, loggedSets: 0 }; }
+}
+
+/** Contenuto del file di log a una specifica revisione. */
+export async function readGistRevision(sha: string): Promise<string | null> {
+  const gistId = await findOrCreateGist();
+  const res = await ghFetch(`/gists/${gistId}/${encodeURIComponent(sha)}`);
+  if (!res.ok) return null;
+  const data = await res.json() as { files?: Record<string, { content?: string }> };
+  return data.files?.[GIST_FILE]?.content ?? null;
+}
+
+/** Elenca le revisioni del Gist con statistiche (sessioni, serie loggate). */
+export async function listGistRevisions(max = 12): Promise<GistRevisionInfo[]> {
+  const gistId = await findOrCreateGist();
+  const res = await ghFetch(`/gists/${gistId}`);
+  if (!res.ok) throw new Error(`Errore lettura revisioni (${res.status})`);
+  const data = await res.json() as { history?: Array<{ version: string; committed_at: string }> };
+  const hist = (data.history ?? []).slice(0, max);
+
+  // Scarica i contenuti in parallelo per calcolare le statistiche.
+  const infos = await Promise.all(hist.map(async h => {
+    const content = await readGistRevision(h.version);
+    const { sessionCount, loggedSets } = statsOf(content);
+    return { sha: h.version, date: h.committed_at, sessionCount, loggedSets };
+  }));
+  return infos;
+}

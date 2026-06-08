@@ -19,10 +19,11 @@ import { BackgroundPicker }   from '../components/BackgroundPicker';
 import { formatDisplayFull }  from '../lib/dates';
 import { useDriveSync } from '../contexts/DriveSync';
 import { serializeBackup, applyBackup } from '../lib/backup';
+import { listGistRevisions, readGistRevision, type GistRevisionInfo } from '../lib/gistsync';
 // Caricamento lazy di xlsx — riduce il bundle iniziale (xlsx ~500KB raw)
 const excelLib = () => import('../lib/excel');
 
-const APP_VERSION = '0.3.0';
+const APP_VERSION = '0.4.0';
 
 // ── Sezione wrapper ───────────────────────────────────────────────────────────
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
@@ -136,6 +137,8 @@ export function Settings() {
   const [showTokenField, setShowTokenField] = useState(false);
   const [showPaste, setShowPaste] = useState(false);
   const [pasteText, setPasteText] = useState('');
+  const [restoreList, setRestoreList] = useState<GistRevisionInfo[] | null>(null);
+  const [restoreBusy, setRestoreBusy] = useState(false);
 
   const [dialog, setDialog] = useState<'reset-meso' | 'reset-all' | 'del-profile' | null>(null);
   const [newProfileName, setNewProfileName] = useState('');
@@ -190,6 +193,31 @@ export function Settings() {
     show(mode === 'bundle' ? 'Backup ripristinato ✓' : 'Log importato ✓', 'ok');
     setShowPaste(false);
     setTimeout(() => window.location.reload(), 600);
+  }
+
+  // ── Ripristino da GitHub: elenca le revisioni del Gist (niente copia-incolla) ──
+  function openRestore() {
+    setRestoreBusy(true);
+    setRestoreList([]);
+    listGistRevisions()
+      .then(list => setRestoreList(list))
+      .catch(err => { setRestoreList(null); show(`Errore: ${String(err)}`, 'err'); })
+      .finally(() => setRestoreBusy(false));
+  }
+
+  function restoreRevision(sha: string) {
+    setRestoreBusy(true);
+    readGistRevision(sha)
+      .then(content => {
+        if (!content) { show('Revisione vuota.', 'err'); return; }
+        const mode = applyBackup(content);
+        if (mode === 'invalid') { show('Revisione non valida.', 'err'); return; }
+        show('Dati ripristinati da GitHub ✓', 'ok');
+        setRestoreList(null);
+        setTimeout(() => window.location.reload(), 600);
+      })
+      .catch(err => show(`Errore: ${String(err)}`, 'err'))
+      .finally(() => setRestoreBusy(false));
   }
 
   // ── Import Excel scheda ───────────────────────────────────────────────────────
@@ -636,6 +664,16 @@ export function Settings() {
             </div>
           )}
 
+          {/* Ripristino da una revisione del Gist — recupero robusto senza copia-incolla */}
+          {drive.status !== 'disconnected' && (
+            <ActionRow
+              icon={<RotateCcw size={18} className="text-amber-400 shrink-0" />}
+              label="Ripristina da GitHub"
+              sublabel="Recupera i dati da una versione precedente del backup"
+              onClick={openRestore}
+            />
+          )}
+
           <p className="text-xs text-slate-600 px-1 leading-relaxed">
             I dati vengono salvati in un Gist privato del tuo account GitHub.
             Ogni persona usa il proprio token → dati separati e indipendenti.
@@ -757,6 +795,72 @@ export function Settings() {
                 Importa
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Sheet: ripristino da revisioni del Gist */}
+      {restoreList !== null && (
+        <div
+          className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm px-4 pb-8"
+          onClick={() => { if (!restoreBusy) setRestoreList(null); }}
+        >
+          <div
+            className="w-full max-w-sm bg-slate-900 border border-slate-700 rounded-3xl p-5 space-y-3 max-h-[80vh] overflow-y-auto"
+            onClick={e => e.stopPropagation()}
+          >
+            <div>
+              <p className="font-bold text-slate-100">Ripristina da GitHub</p>
+              <p className="text-sm text-slate-400 mt-0.5 leading-snug">
+                Scegli la versione con i tuoi dati. La più recente è in alto.
+              </p>
+            </div>
+
+            {restoreBusy && restoreList.length === 0 && (
+              <p className="text-sm text-[var(--sl-cyan)] py-4 text-center">Caricamento revisioni…</p>
+            )}
+            {!restoreBusy && restoreList.length === 0 && (
+              <p className="text-sm text-slate-400 py-4 text-center">Nessuna revisione trovata.</p>
+            )}
+
+            <div className="space-y-2">
+              {restoreList.map((r, i) => {
+                const d = new Date(r.date);
+                const when = d.toLocaleString('it-IT', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+                const empty = r.loggedSets === 0;
+                return (
+                  <button
+                    key={r.sha}
+                    onClick={() => { if (!restoreBusy) restoreRevision(r.sha); }}
+                    disabled={restoreBusy || empty}
+                    className={[
+                      'w-full flex items-center justify-between gap-3 px-4 py-3 rounded-2xl border text-left',
+                      empty
+                        ? 'border-[var(--sl-line-soft)] opacity-50'
+                        : 'border-[var(--sl-line)] sl-panel active:brightness-110',
+                    ].join(' ')}
+                  >
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-slate-100">
+                        {i === 0 ? 'Più recente' : when}
+                      </p>
+                      <p className="text-xs text-[var(--sl-text-dim)]">
+                        {r.sessionCount} sessioni · {r.loggedSets} serie {empty && '(vuota)'}
+                      </p>
+                    </div>
+                    {!empty && <ChevronRight size={16} className="text-[var(--sl-cyan)] shrink-0" />}
+                  </button>
+                );
+              })}
+            </div>
+
+            <button
+              onClick={() => { if (!restoreBusy) setRestoreList(null); }}
+              className="w-full py-3.5 rounded-2xl bg-slate-800 border border-slate-700
+                text-slate-300 font-semibold text-sm active:bg-slate-700"
+            >
+              Chiudi
+            </button>
           </div>
         </div>
       )}
